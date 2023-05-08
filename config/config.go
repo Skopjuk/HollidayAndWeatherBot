@@ -2,7 +2,6 @@ package config
 
 import (
 	"github.com/joho/godotenv"
-	"log"
 	"os"
 )
 
@@ -10,11 +9,11 @@ type Config struct {
 	Token string
 }
 
-func NewConfig() *Config {
+func NewConfig() (*Config, error) {
 	err := godotenv.Load()
 	if err != nil {
-		log.Fatal("Error loading .env file")
+		return nil, err
 	}
 	token := os.Getenv("TOKEN")
-	return &Config{Token: token}
+	return &Config{Token: token}, nil
 }
