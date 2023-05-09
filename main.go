@@ -26,7 +26,7 @@ func main() {
 
 	config, err := config.NewConfig()
 	if err != nil {
-		logrus.Error("unable to load config")
+		logrus.Fatal("unable to load config")
 	}
 
 	logLevel, err := logrus.ParseLevel(config.LogLevel)
