@@ -61,7 +61,6 @@ func (t *TelegramBot) GetUpdates(ctx context.Context) chan Message {
 			case <-ctx.Done():
 				return
 			case update := <-updates:
-				handleMessage(update.Message)
 				messageChan <- *handleMessage(update.Message)
 			}
 		}
