@@ -2,10 +2,9 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"git.foxminded.ua/foxstudent104911/2.1about-me-bot/config"
 	"git.foxminded.ua/foxstudent104911/2.1about-me-bot/telegram"
-	"log"
+	"github.com/sirupsen/logrus"
 	"os"
 	"os/signal"
 	"syscall"
@@ -22,10 +21,24 @@ var (
 )
 
 func main() {
-	config := config.NewConfig()
+	logrus.SetOutput(os.Stdout)
+	logrus.SetFormatter(&logrus.JSONFormatter{})
+
+	config, err := config.NewConfig()
+	if err != nil {
+		logrus.Error("unable to load config")
+	}
+
+	logLevel, err := logrus.ParseLevel(config.LogLevel)
+	if err != nil {
+		logLevel = logrus.InfoLevel
+	}
+
+	logrus.SetLevel(logLevel)
+
 	bot, err = telegram.NewTelegramBot(config.Token)
 	if err != nil {
-		log.Fatal(err)
+		logrus.Fatal(err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -34,7 +47,7 @@ func main() {
 
 	go handleMessages(messages)
 
-	log.Println("Start listening for updates. Press enter to stop")
+	logrus.Info("Start listening for updates")
 
 	go handleSignals()
 	<-done
@@ -54,7 +67,7 @@ func handleSignals() {
 
 	for {
 		s := <-sign
-		fmt.Printf("Got %s signal\n", s)
+		logrus.Errorf("Got %s signal\n", s)
 		done <- true
 	}
 }
@@ -84,12 +97,23 @@ func handleCommand(message telegram.Message) error {
 		err = handleUnknownMessage(message.ChatId)
 	}
 
+	if err != nil {
+		logrus.Error("Message were not handled")
+	} else {
+		logrus.WithFields(logrus.Fields{
+			"chatId":  message.ChatId,
+			"message": message.Command,
+		}).Info("answer sent")
+	}
 	return err
 }
 
 func sendInfo(chatId int64) error {
 	err := bot.SendMessage(chatId, infoAboutMe)
 	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"chatId": chatId,
+		}).Error(err)
 		return err
 	}
 	return nil
@@ -98,6 +122,9 @@ func sendInfo(chatId int64) error {
 func sendLinks(chatId int64) error {
 	err := bot.SendMessage(chatId, socNetworksLinks)
 	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"chatId": chatId,
+		}).Error(err)
 		return err
 	}
 	return nil
@@ -106,6 +133,9 @@ func sendLinks(chatId int64) error {
 func sendStartAndHelp(chatId int64) error {
 	err := bot.SendMessage(chatId, start)
 	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"chatId": chatId,
+		}).Error(err)
 		return err
 	}
 	return nil
@@ -114,6 +144,9 @@ func sendStartAndHelp(chatId int64) error {
 func handleUnknownMessage(chatId int64) error {
 	err := bot.SendMessage(chatId, answerForUnknownCommand)
 	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"chatId": chatId,
+		}).Error(err)
 		return err
 	}
 	return nil

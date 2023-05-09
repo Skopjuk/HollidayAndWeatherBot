@@ -6,7 +6,8 @@ import (
 )
 
 type Config struct {
-	Token string
+	Token    string
+	LogLevel string
 }
 
 func NewConfig() (*Config, error) {
@@ -15,5 +16,9 @@ func NewConfig() (*Config, error) {
 		return nil, err
 	}
 	token := os.Getenv("TOKEN")
-	return &Config{Token: token}, nil
+	logLevel := os.Getenv("LOG_LEVEL")
+	return &Config{
+		Token:    token,
+		LogLevel: logLevel,
+	}, nil
 }
