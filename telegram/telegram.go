@@ -3,6 +3,7 @@ package telegram
 import (
 	"context"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	log "github.com/sirupsen/logrus"
 )
 
 type TelegramBot struct {
@@ -33,6 +34,15 @@ func (t *TelegramBot) SendMessage(chatId int64, message string) error {
 }
 
 func handleMessage(t *tgbotapi.Message) *Message {
+	user := t.From
+	text := t.Text
+
+	log.WithFields(log.Fields{
+		"chat_id": t.Chat.ID,
+		"user":    user,
+		"text":    text,
+	}).Info("message received")
+
 	return &Message{
 		Command: t.Text,
 		ChatId:  t.Chat.ID,
@@ -51,7 +61,6 @@ func (t *TelegramBot) GetUpdates(ctx context.Context) chan Message {
 			case <-ctx.Done():
 				return
 			case update := <-updates:
-				handleMessage(update.Message)
 				messageChan <- *handleMessage(update.Message)
 			}
 		}
