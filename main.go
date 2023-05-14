@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"git.foxminded.ua/foxstudent104911/2.1about-me-bot/config"
+	"git.foxminded.ua/foxstudent104911/2.1about-me-bot/holliday"
 	"git.foxminded.ua/foxstudent104911/2.1about-me-bot/telegram"
 	"github.com/sirupsen/logrus"
 	"os"
@@ -13,15 +14,17 @@ import (
 var (
 	infoAboutMe             = "name: Kseniia\nage: 24\ngender: female"
 	socNetworksLinks        = "Instagram: https://instagram.com/some_insta\nFacebook: https://facebook.com/any_facebook\nLinkedIn: https://linkedin.com/some_linkedin"
-	start                   = "<b>List of comands:</b>\n/about -- Info about author\n/links -- links to social networks"
+	help                    = "<b>List of comands:</b>\n/about -- Info about author\n/links -- links to social networks"
 	answerForUnknownCommand = "I have no clue what you are talking about"
 	done                    = make(chan bool, 1)
 	bot                     *telegram.TelegramBot
-	err                     error
+	holidayAPI              *holliday.HolidayAPI
+	start                   = "Choose country \n"
 )
 
 func main() {
 	logrus.SetOutput(os.Stdout)
+	logrus.SetReportCaller(true)
 	logrus.SetFormatter(&logrus.JSONFormatter{})
 
 	config, err := config.NewConfig()
@@ -31,15 +34,18 @@ func main() {
 
 	logLevel, err := logrus.ParseLevel(config.LogLevel)
 	if err != nil {
+		logrus.Error("Wrong log level in config")
 		logLevel = logrus.InfoLevel
 	}
 
 	logrus.SetLevel(logLevel)
 
-	bot, err = telegram.NewTelegramBot(config.Token)
+	bot, err = telegram.NewTelegramBot(config.Token, config.BotDebug)
 	if err != nil {
 		logrus.Fatal(err)
 	}
+
+	holidayAPI = holliday.NewHolidayAPI(config.HolidayAPI)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -72,27 +78,58 @@ func handleSignals() {
 	}
 }
 
-func handleMessages(messages chan telegram.Message) {
+func handleMessages(update chan telegram.TelegramUpdate) {
 	for {
-		err := handleCommand(<-messages)
+		handleUpdate(<-update)
+	}
+}
+
+func handleUpdate(update telegram.TelegramUpdate) {
+	if update.Message != nil {
+		err := handleMessage(*update.Message)
 		if err != nil {
-			return
+			logrus.WithFields(logrus.Fields{
+				"chatId": update.Message.ChatId,
+			}).Error("message unhandled")
+		}
+	} else if update.Callback != nil {
+		err := handleCallback(*update.Callback)
+		if err != nil {
+			logrus.WithFields(logrus.Fields{
+				"chatId": update.Callback.ChatId,
+			}).Error("callback unhandled")
 		}
 	}
 }
 
-func handleCommand(message telegram.Message) error {
+func handleCallback(callback telegram.Callback) error {
+	var err error
+
+	bot.SendHoliday(callback.Message.Chat.ID, callback, *holidayAPI)
+
+	if err != nil {
+		logrus.Error("Callback were not handled")
+	} else {
+		logrus.WithFields(logrus.Fields{
+			"chatId": callback.ChatId,
+			"button": callback.Button,
+		}).Info("answer sent")
+	}
+	return err
+}
+
+func handleMessage(message telegram.Message) error {
 	var err error
 
 	switch message.Command {
-	case "/start":
-		err = sendStartAndHelp(message.ChatId)
 	case "/help":
-		err = sendStartAndHelp(message.ChatId)
+		err = sendHelp(message.ChatId)
 	case "/links":
 		err = sendLinks(message.ChatId)
 	case "/about":
 		err = sendInfo(message.ChatId)
+	case "/start":
+		err = sendStart(message.ChatId)
 	default:
 		err = handleUnknownMessage(message.ChatId)
 	}
@@ -130,8 +167,19 @@ func sendLinks(chatId int64) error {
 	return nil
 }
 
-func sendStartAndHelp(chatId int64) error {
-	err := bot.SendMessage(chatId, start)
+func sendHelp(chatId int64) error {
+	err := bot.SendMessage(chatId, help)
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"chatId": chatId,
+		}).Error(err)
+		return err
+	}
+	return nil
+}
+
+func sendStart(chatId int64) error {
+	err := bot.SendMenu(chatId, start)
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
 			"chatId": chatId,
