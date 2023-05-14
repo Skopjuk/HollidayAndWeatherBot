@@ -3,8 +3,9 @@ package main
 import (
 	"context"
 	"git.foxminded.ua/foxstudent104911/2.1about-me-bot/config"
-	"git.foxminded.ua/foxstudent104911/2.1about-me-bot/holliday"
+	"git.foxminded.ua/foxstudent104911/2.1about-me-bot/holiday"
 	"git.foxminded.ua/foxstudent104911/2.1about-me-bot/telegram"
+	"github.com/enescakir/emoji"
 	"github.com/sirupsen/logrus"
 	"os"
 	"os/signal"
@@ -14,11 +15,11 @@ import (
 var (
 	infoAboutMe             = "name: Kseniia\nage: 24\ngender: female"
 	socNetworksLinks        = "Instagram: https://instagram.com/some_insta\nFacebook: https://facebook.com/any_facebook\nLinkedIn: https://linkedin.com/some_linkedin"
-	help                    = "<b>List of comands:</b>\n/about -- Info about author\n/links -- links to social networks"
+	help                    = "<b>List of comands:</b>\n/about -- Info about author\n/links -- links to social networks\n/start -- list of holidays by country"
 	answerForUnknownCommand = "I have no clue what you are talking about"
 	done                    = make(chan bool, 1)
 	bot                     *telegram.TelegramBot
-	holidayAPI              *holliday.HolidayAPI
+	holidayAPI              *holiday.HolidayAPI
 	start                   = "Choose country \n"
 )
 
@@ -45,13 +46,13 @@ func main() {
 		logrus.Fatal(err)
 	}
 
-	holidayAPI = holliday.NewHolidayAPI(config.HolidayAPI)
+	holidayAPI = holiday.NewHolidayAPI(config.HolidayAPI)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	messages := bot.GetUpdates(ctx)
+	updates := bot.GetUpdates(ctx)
 
-	go handleMessages(messages)
+	go handleUpdates(updates)
 
 	logrus.Info("Start listening for updates")
 
@@ -78,7 +79,7 @@ func handleSignals() {
 	}
 }
 
-func handleMessages(update chan telegram.TelegramUpdate) {
+func handleUpdates(update chan telegram.TelegramUpdate) {
 	for {
 		handleUpdate(<-update)
 	}
@@ -104,11 +105,50 @@ func handleUpdate(update telegram.TelegramUpdate) {
 
 func handleCallback(callback telegram.Callback) error {
 	var err error
+	var holidayList string
+	var holidayArray *[]string
+	var requestErr error
+	var transformErr error
 
-	bot.SendHoliday(callback.Message.Chat.ID, callback, *holidayAPI)
+	switch callback.Button {
+	case string(emoji.FlagForUkraine):
+		holidayArray, requestErr = holidayAPI.MakeRequest("UA")
+		holidayList, transformErr = bot.TransformListOfHolidaysToStr(holidayArray)
+	case string(emoji.FlagForAfghanistan):
+		holidayArray, requestErr = holidayAPI.MakeRequest("AG")
+		holidayList, transformErr = bot.TransformListOfHolidaysToStr(holidayArray)
+	case string(emoji.FlagForJapan):
+		holidayArray, requestErr = holidayAPI.MakeRequest("JP")
+		holidayList, transformErr = bot.TransformListOfHolidaysToStr(holidayArray)
+	case string(emoji.FlagForMalaysia):
+		holidayArray, requestErr = holidayAPI.MakeRequest("ML")
+		holidayList, transformErr = bot.TransformListOfHolidaysToStr(holidayArray)
+	}
+
+	if requestErr != nil {
+		logrus.WithFields(logrus.Fields{
+			"chatId":         callback.ChatId,
+			"button_pressed": callback.Button,
+			"error":          requestErr,
+		}).Error(requestErr)
+	}
+
+	if transformErr != nil {
+		logrus.WithFields(logrus.Fields{
+			"chatId":         callback.ChatId,
+			"button_pressed": callback.Button,
+			"error":          requestErr,
+		}).Error(transformErr)
+	}
+
+	bot.SendHoliday(callback.Message.Chat.ID, callback, holidayList)
 
 	if err != nil {
-		logrus.Error("Callback were not handled")
+		logrus.WithFields(logrus.Fields{
+			"chatId":         callback.ChatId,
+			"button_pressed": callback.Button,
+			"error":          err,
+		}).Error("Callback were not handled")
 	} else {
 		logrus.WithFields(logrus.Fields{
 			"chatId": callback.ChatId,
@@ -151,9 +191,8 @@ func sendInfo(chatId int64) error {
 		logrus.WithFields(logrus.Fields{
 			"chatId": chatId,
 		}).Error(err)
-		return err
 	}
-	return nil
+	return err
 }
 
 func sendLinks(chatId int64) error {
@@ -162,9 +201,8 @@ func sendLinks(chatId int64) error {
 		logrus.WithFields(logrus.Fields{
 			"chatId": chatId,
 		}).Error(err)
-		return err
 	}
-	return nil
+	return err
 }
 
 func sendHelp(chatId int64) error {
@@ -173,9 +211,8 @@ func sendHelp(chatId int64) error {
 		logrus.WithFields(logrus.Fields{
 			"chatId": chatId,
 		}).Error(err)
-		return err
 	}
-	return nil
+	return err
 }
 
 func sendStart(chatId int64) error {
@@ -184,9 +221,8 @@ func sendStart(chatId int64) error {
 		logrus.WithFields(logrus.Fields{
 			"chatId": chatId,
 		}).Error(err)
-		return err
 	}
-	return nil
+	return err
 }
 
 func handleUnknownMessage(chatId int64) error {
@@ -195,7 +231,6 @@ func handleUnknownMessage(chatId int64) error {
 		logrus.WithFields(logrus.Fields{
 			"chatId": chatId,
 		}).Error(err)
-		return err
 	}
-	return nil
+	return err
 }

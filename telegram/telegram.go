@@ -2,7 +2,6 @@ package telegram
 
 import (
 	"context"
-	"git.foxminded.ua/foxstudent104911/2.1about-me-bot/holliday"
 	"github.com/enescakir/emoji"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	log "github.com/sirupsen/logrus"
@@ -71,18 +70,25 @@ func (t *TelegramBot) SendMenu(chatId int64, message string) error {
 	return err
 }
 
-func (t *TelegramBot) SendHoliday(queryId int64, callback Callback, holiday holliday.HolidayAPI) {
+func (t *TelegramBot) SendHoliday(queryId int64, callback Callback, holidayList string) {
+	var err error
+
 	callbackCfg := tgbotapi.NewCallback(callback.ChatId, "")
 	t.bot.Send(callbackCfg)
 
-	holidayList, err := holiday.HolidayListInString("AG")
 	if err != nil {
 		errorMsg := tgbotapi.NewMessage(queryId, "Please try again in few seconds")
-		t.bot.Send(errorMsg)
+		_, err = t.bot.Send(errorMsg)
+		if err != nil {
+			return
+		}
 		return
 	}
 	msg := tgbotapi.NewMessage(queryId, holidayList)
-	t.bot.Send(msg)
+	_, err = t.bot.Send(msg)
+	if err != nil {
+		return
+	}
 }
 
 func newUpdate(t *tgbotapi.Update) TelegramUpdate {
@@ -133,4 +139,18 @@ func (t *TelegramBot) GetUpdates(ctx context.Context) chan TelegramUpdate {
 	}()
 
 	return updateChan
+}
+
+func (t *TelegramBot) TransformListOfHolidaysToStr(holidayArray *[]string) (string, error) {
+	var holidayListInString string
+	if holidayArray != nil && len(*holidayArray) > 0 {
+		for i := 0; i < len(*holidayArray); i++ {
+			holidayListInString += (*holidayArray)[0]
+		}
+		return holidayListInString, nil
+	} else {
+		holidayListInString = ""
+	}
+
+	return "today is no holidays in this country", nil
 }

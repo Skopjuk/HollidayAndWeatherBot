@@ -1,4 +1,4 @@
-package holliday
+package holiday
 
 import (
 	"encoding/json"
@@ -28,30 +28,31 @@ func NewHolidayAPI(token string) *HolidayAPI {
 }
 
 func (h *HolidayAPI) MakeRequest(country string) (*[]string, error) {
-	currantYear := strconv.Itoa(time.Now().Year())
-	currantDay := strconv.Itoa(time.Now().Day())
-	currantMonth := strconv.Itoa(int(time.Now().Month()))
+	now := time.Now()
+
+	currentYear := strconv.Itoa(now.Year())
+	currentDay := strconv.Itoa(now.Day())
+	currentMonth := strconv.Itoa(int(now.Month()))
 	holidayCatalogue := []HolidayData{}
 	var holidayList []string
 
-	url := fmt.Sprintf("https://holidays.abstractapi.com/v1/?api_key=%s&country=%s&year=%s&month=%s&day=%s", h.token, country, currantYear, currantMonth, currantDay)
-	fmt.Println(url)
+	url := fmt.Sprintf("https://holidays.abstractapi.com/v1/?api_key=%s&country=%s&year=%s&month=%s&day=%s", h.token, country, currentYear, currentMonth, currentDay)
+
 	resp, err := http.Get(url)
 	if err != nil {
-		logrus.Fatal(err)
+		logrus.Error(err)
+		return nil, err
 	}
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		logrus.Fatal(err)
+		logrus.Error(err)
+		return nil, err
 	}
-
-	fmt.Println(string(body))
 
 	err = json.Unmarshal(body, &holidayCatalogue)
 	if err != nil {
 		logrus.Error(err)
-
 		return nil, err
 	}
 
@@ -60,24 +61,4 @@ func (h *HolidayAPI) MakeRequest(country string) (*[]string, error) {
 	}
 
 	return &holidayList, nil
-}
-
-func (h *HolidayAPI) HolidayListInString(countryCode string) (string, error) {
-	var holidayListInString string
-
-	holidayArray, err := h.MakeRequest(countryCode)
-	if err != nil {
-		logrus.Error(err)
-		return "", err
-	}
-
-	if holidayArray != nil && len(*holidayArray) > 0 {
-		for i := 0; i < len(*holidayArray); i++ {
-			holidayListInString += (*holidayArray)[0]
-		}
-		return holidayListInString, nil
-	} else {
-		holidayListInString = ""
-	}
-	return "today is no holidays in this country", nil
 }
