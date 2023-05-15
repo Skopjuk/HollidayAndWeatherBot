@@ -21,6 +21,12 @@ var (
 	bot                     *telegram.TelegramBot
 	holidayAPI              *holiday.HolidayAPI
 	start                   = "Choose country \n"
+	buttons                 = map[emoji.Emoji]string{
+		emoji.FlagForUkraine:     "UA",
+		emoji.FlagForAfghanistan: "AG",
+		emoji.FlagForJapan:       "JP",
+		emoji.FlagForMalaysia:    "ML",
+	}
 )
 
 func main() {
@@ -106,43 +112,29 @@ func handleUpdate(update telegram.TelegramUpdate) {
 func handleCallback(callback telegram.Callback) error {
 	var err error
 	var holidayList string
-	var holidayArray *[]string
-	var requestErr error
-	var transformErr error
+	var holidayArray []string
 
-	switch callback.Button {
-	case string(emoji.FlagForUkraine):
-		holidayArray, requestErr = holidayAPI.MakeRequest("UA")
-		holidayList, transformErr = bot.TransformListOfHolidaysToStr(holidayArray)
-	case string(emoji.FlagForAfghanistan):
-		holidayArray, requestErr = holidayAPI.MakeRequest("AG")
-		holidayList, transformErr = bot.TransformListOfHolidaysToStr(holidayArray)
-	case string(emoji.FlagForJapan):
-		holidayArray, requestErr = holidayAPI.MakeRequest("JP")
-		holidayList, transformErr = bot.TransformListOfHolidaysToStr(holidayArray)
-	case string(emoji.FlagForMalaysia):
-		holidayArray, requestErr = holidayAPI.MakeRequest("ML")
-		holidayList, transformErr = bot.TransformListOfHolidaysToStr(holidayArray)
-	}
+	pressedButton := buttons[emoji.Emoji(callback.Button)]
 
-	if requestErr != nil {
+	holidayArray, err = holidayAPI.MakeRequest(pressedButton)
+	if err != nil {
 		logrus.WithFields(logrus.Fields{
 			"chatId":         callback.ChatId,
 			"button_pressed": callback.Button,
-			"error":          requestErr,
-		}).Error(requestErr)
+			"error":          err,
+		}).Error(err)
 	}
 
-	if transformErr != nil {
+	holidayList, err = bot.TransformListOfHolidaysToStr(&holidayArray)
+	if err != nil {
 		logrus.WithFields(logrus.Fields{
 			"chatId":         callback.ChatId,
 			"button_pressed": callback.Button,
-			"error":          requestErr,
-		}).Error(transformErr)
+			"error":          err,
+		}).Error(err)
 	}
 
 	bot.SendHoliday(callback.Message.Chat.ID, callback, holidayList)
-
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
 			"chatId":         callback.ChatId,

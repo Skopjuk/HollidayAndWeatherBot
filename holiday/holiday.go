@@ -3,15 +3,15 @@ package holiday
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/sirupsen/logrus"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strconv"
 	"time"
 )
 
 type HolidayAPI struct {
-	token string
+	token      string
+	apiAddress string
 }
 
 type HolidayCatalogue struct {
@@ -27,7 +27,7 @@ func NewHolidayAPI(token string) *HolidayAPI {
 	return &HolidayAPI{token: token}
 }
 
-func (h *HolidayAPI) MakeRequest(country string) (*[]string, error) {
+func (h *HolidayAPI) MakeRequest(country string) ([]string, error) {
 	now := time.Now()
 
 	currentYear := strconv.Itoa(now.Year())
@@ -36,23 +36,20 @@ func (h *HolidayAPI) MakeRequest(country string) (*[]string, error) {
 	holidayCatalogue := []HolidayData{}
 	var holidayList []string
 
-	url := fmt.Sprintf("https://holidays.abstractapi.com/v1/?api_key=%s&country=%s&year=%s&month=%s&day=%s", h.token, country, currentYear, currentMonth, currentDay)
+	url := fmt.Sprintf("%sv1/?api_key=%s&country=%s&year=%s&month=%s&day=%s", h.apiAddress, h.token, country, currentYear, currentMonth, currentDay)
 
 	resp, err := http.Get(url)
 	if err != nil {
-		logrus.Error(err)
 		return nil, err
 	}
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		logrus.Error(err)
 		return nil, err
 	}
 
 	err = json.Unmarshal(body, &holidayCatalogue)
 	if err != nil {
-		logrus.Error(err)
 		return nil, err
 	}
 
@@ -60,5 +57,5 @@ func (h *HolidayAPI) MakeRequest(country string) (*[]string, error) {
 		holidayList = append(holidayList, holidayCatalogue[i].Name)
 	}
 
-	return &holidayList, nil
+	return holidayList, nil
 }

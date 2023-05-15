@@ -11,6 +11,7 @@ type Config struct {
 	LogLevel   string
 	BotDebug   bool
 	HolidayAPI string
+	APIAddress string
 }
 
 func NewConfig() (*Config, error) {
@@ -23,6 +24,7 @@ func NewConfig() (*Config, error) {
 	logLevel := os.Getenv("LOG_LEVEL")
 	botDebug := os.Getenv("BOT_DEBUG")
 	holidayAPI := os.Getenv("HOLIDAY_KEY")
+	apiAddress := os.Getenv("API_ADDRESS")
 	botDebugBool, err := strconv.ParseBool(botDebug)
 	if err != nil {
 		return nil, err
@@ -32,5 +34,6 @@ func NewConfig() (*Config, error) {
 		LogLevel:   logLevel,
 		BotDebug:   botDebugBool,
 		HolidayAPI: holidayAPI,
+		APIAddress: apiAddress,
 	}, nil
 }
