@@ -115,15 +115,6 @@ func handleCallback(callback telegram.Callback) error {
 
 	pressedButton := buttons[emoji.Emoji(callback.Button)]
 
-	//holidayArray, err = holidayAPI.MakeRequest(pressedButton)
-	//if err != nil {
-	//	logrus.WithFields(logrus.Fields{
-	//		"chatId":         callback.ChatId,
-	//		"button_pressed": callback.Button,
-	//		"error":          err,
-	//	}).Error(err)
-	//}
-
 	holidayList, err = holidayAPI.TransformListOfHolidaysToStr(pressedButton)
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
