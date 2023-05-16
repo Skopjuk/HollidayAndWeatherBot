@@ -112,11 +112,19 @@ func handleUpdate(update telegram.TelegramUpdate) {
 func handleCallback(callback telegram.Callback) error {
 	var err error
 	var holidayList string
-	var holidayArray []string
 
 	pressedButton := buttons[emoji.Emoji(callback.Button)]
 
-	holidayArray, err = holidayAPI.MakeRequest(pressedButton)
+	//holidayArray, err = holidayAPI.MakeRequest(pressedButton)
+	//if err != nil {
+	//	logrus.WithFields(logrus.Fields{
+	//		"chatId":         callback.ChatId,
+	//		"button_pressed": callback.Button,
+	//		"error":          err,
+	//	}).Error(err)
+	//}
+
+	holidayList, err = holidayAPI.TransformListOfHolidaysToStr(pressedButton)
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
 			"chatId":         callback.ChatId,
@@ -125,16 +133,7 @@ func handleCallback(callback telegram.Callback) error {
 		}).Error(err)
 	}
 
-	holidayList, err = bot.TransformListOfHolidaysToStr(&holidayArray)
-	if err != nil {
-		logrus.WithFields(logrus.Fields{
-			"chatId":         callback.ChatId,
-			"button_pressed": callback.Button,
-			"error":          err,
-		}).Error(err)
-	}
-
-	bot.SendHoliday(callback.Message.Chat.ID, callback, holidayList)
+	bot.SendMessageWithCallback(callback.Message.Chat.ID, callback, holidayList)
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
 			"chatId":         callback.ChatId,

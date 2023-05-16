@@ -70,7 +70,7 @@ func (t *TelegramBot) SendMenu(chatId int64, message string) error {
 	return err
 }
 
-func (t *TelegramBot) SendHoliday(queryId int64, callback Callback, holidayList string) {
+func (t *TelegramBot) SendMessageWithCallback(queryId int64, callback Callback, messageToSend string) {
 	var err error
 
 	callbackCfg := tgbotapi.NewCallback(callback.ChatId, "")
@@ -84,7 +84,7 @@ func (t *TelegramBot) SendHoliday(queryId int64, callback Callback, holidayList 
 		}
 		return
 	}
-	msg := tgbotapi.NewMessage(queryId, holidayList)
+	msg := tgbotapi.NewMessage(queryId, messageToSend)
 	_, err = t.bot.Send(msg)
 	if err != nil {
 		return
@@ -139,18 +139,4 @@ func (t *TelegramBot) GetUpdates(ctx context.Context) chan TelegramUpdate {
 	}()
 
 	return updateChan
-}
-
-func (t *TelegramBot) TransformListOfHolidaysToStr(holidayArray *[]string) (string, error) {
-	var holidayListInString string
-	if holidayArray != nil && len(*holidayArray) > 0 {
-		for i := 0; i < len(*holidayArray); i++ {
-			holidayListInString += (*holidayArray)[0]
-		}
-		return holidayListInString, nil
-	} else {
-		holidayListInString = ""
-	}
-
-	return "today is no holidays in this country", nil
 }

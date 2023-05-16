@@ -3,6 +3,7 @@ package holiday
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/sirupsen/logrus"
 	"io"
 	"net/http"
 	"strconv"
@@ -58,4 +59,24 @@ func (h *HolidayAPI) MakeRequest(country string) ([]string, error) {
 	}
 
 	return holidayList, nil
+}
+
+func (h *HolidayAPI) TransformListOfHolidaysToStr(pressedButton string) (string, error) {
+	var holidayListInString string
+
+	holidayArray, err := h.MakeRequest(pressedButton)
+	if err != nil {
+		logrus.Error(err)
+	}
+
+	if holidayArray != nil && len(holidayArray) > 0 {
+		for i := 0; i < len(holidayArray); i++ {
+			holidayListInString += (holidayArray)[0]
+		}
+		return holidayListInString, nil
+	} else {
+		holidayListInString = ""
+	}
+
+	return "today is no holidays in this country", nil
 }
