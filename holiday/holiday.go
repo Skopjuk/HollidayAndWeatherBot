@@ -24,8 +24,11 @@ type HolidayData struct {
 	Country string `json:"country"`
 }
 
-func NewHolidayAPI(token string) *HolidayAPI {
-	return &HolidayAPI{token: token}
+func NewHolidayAPI(token string, apiAddress string) *HolidayAPI {
+	return &HolidayAPI{
+		token:      token,
+		apiAddress: apiAddress,
+	}
 }
 
 func (h *HolidayAPI) MakeRequest(country string) ([]string, error) {
@@ -67,16 +70,16 @@ func (h *HolidayAPI) TransformListOfHolidaysToStr(pressedButton string) (string,
 	holidayArray, err := h.MakeRequest(pressedButton)
 	if err != nil {
 		logrus.Error(err)
+		return "", fmt.Errorf("can't get a list of holidays for %s: %w", pressedButton, err)
 	}
 
-	if holidayArray != nil && len(holidayArray) > 0 {
-		for i := 0; i < len(holidayArray); i++ {
-			holidayListInString += (holidayArray)[0]
-		}
+	for i := 0; i < len(holidayArray); i++ {
+		holidayListInString += (holidayArray)[0]
+	}
+
+	if len(holidayListInString) > 0 {
 		return holidayListInString, nil
-	} else {
-		holidayListInString = ""
 	}
 
-	return "today is no holidays in this country", nil
+	return "Today is no holidays in this country.", nil
 }

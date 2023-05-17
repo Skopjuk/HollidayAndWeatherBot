@@ -21,12 +21,6 @@ var (
 	bot                     *telegram.TelegramBot
 	holidayAPI              *holiday.HolidayAPI
 	start                   = "Choose country \n"
-	buttons                 = map[emoji.Emoji]string{
-		emoji.FlagForUkraine:     "UA",
-		emoji.FlagForAfghanistan: "AG",
-		emoji.FlagForJapan:       "JP",
-		emoji.FlagForMalaysia:    "ML",
-	}
 )
 
 func main() {
@@ -52,7 +46,7 @@ func main() {
 		logrus.Fatal(err)
 	}
 
-	holidayAPI = holiday.NewHolidayAPI(config.HolidayAPI)
+	holidayAPI = holiday.NewHolidayAPI(config.HolidayApiToken, config.ApiUrlAddress)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -112,8 +106,9 @@ func handleUpdate(update telegram.TelegramUpdate) {
 func handleCallback(callback telegram.Callback) error {
 	var err error
 	var holidayList string
+	excuse := "Sorry, in reason of internal problem we can't show you list of holidays right now. Please, try to repeat in couple of minutes."
 
-	pressedButton := buttons[emoji.Emoji(callback.Button)]
+	pressedButton := telegram.Buttons[emoji.Emoji(callback.Button)]
 
 	holidayList, err = holidayAPI.TransformListOfHolidaysToStr(pressedButton)
 	if err != nil {
@@ -122,6 +117,7 @@ func handleCallback(callback telegram.Callback) error {
 			"button_pressed": callback.Button,
 			"error":          err,
 		}).Error(err)
+		bot.SendMessageWithCallback(callback.Message.Chat.ID, callback, excuse)
 	}
 
 	bot.SendMessageWithCallback(callback.Message.Chat.ID, callback, holidayList)

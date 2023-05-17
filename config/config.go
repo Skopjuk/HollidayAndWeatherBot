@@ -7,11 +7,11 @@ import (
 )
 
 type Config struct {
-	Token      string
-	LogLevel   string
-	BotDebug   bool
-	HolidayAPI string
-	APIAddress string
+	Token           string
+	LogLevel        string
+	BotDebug        bool
+	HolidayApiToken string
+	ApiUrlAddress   string
 }
 
 func NewConfig() (*Config, error) {
@@ -30,10 +30,10 @@ func NewConfig() (*Config, error) {
 		return nil, err
 	}
 	return &Config{
-		Token:      token,
-		LogLevel:   logLevel,
-		BotDebug:   botDebugBool,
-		HolidayAPI: holidayAPI,
-		APIAddress: apiAddress,
+		Token:           token,
+		LogLevel:        logLevel,
+		BotDebug:        botDebugBool,
+		HolidayApiToken: holidayAPI,
+		ApiUrlAddress:   apiAddress,
 	}, nil
 }

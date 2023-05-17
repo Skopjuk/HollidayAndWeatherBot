@@ -8,19 +8,24 @@ import (
 )
 
 var (
-	afghanistanFlagButton = emoji.FlagForAfghanistan
-	malaysiaFlagButton    = emoji.FlagForMalaysia
-	japanFlagButton       = emoji.FlagForJapan
-	ukrainianFlagButton   = emoji.FlagForUkraine
-	startMenuMarkup       = tgbotapi.NewInlineKeyboardMarkup(
+	Buttons = map[emoji.Emoji]string{
+		emoji.FlagForUkraine:     "UA",
+		emoji.FlagForAfghanistan: "AG",
+		emoji.FlagForJapan:       "JP",
+		emoji.FlagForMalaysia:    "ML",
+	}
+
+	listOfKeys = GetKeyMap(Buttons)
+
+	startMenuMarkup = tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData(string(afghanistanFlagButton), string(afghanistanFlagButton))),
+			tgbotapi.NewInlineKeyboardButtonData(string(listOfKeys[1]), string(listOfKeys[1]))),
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData(string(malaysiaFlagButton), string(malaysiaFlagButton))),
+			tgbotapi.NewInlineKeyboardButtonData(string(listOfKeys[3]), string(listOfKeys[3]))),
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData(string(japanFlagButton), string(japanFlagButton))),
+			tgbotapi.NewInlineKeyboardButtonData(string(listOfKeys[2]), string(listOfKeys[2]))),
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData(string(ukrainianFlagButton), string(ukrainianFlagButton))),
+			tgbotapi.NewInlineKeyboardButtonData(string(listOfKeys[0]), string(listOfKeys[0]))),
 	)
 )
 
@@ -80,7 +85,7 @@ func (t *TelegramBot) SendMessageWithCallback(queryId int64, callback Callback, 
 		errorMsg := tgbotapi.NewMessage(queryId, "Please try again in few seconds")
 		_, err = t.bot.Send(errorMsg)
 		if err != nil {
-			return
+			log.Error(err)
 		}
 		return
 	}
@@ -139,4 +144,12 @@ func (t *TelegramBot) GetUpdates(ctx context.Context) chan TelegramUpdate {
 	}()
 
 	return updateChan
+}
+
+func GetKeyMap(buttonMap map[emoji.Emoji]string) []emoji.Emoji {
+	var listOfButtons []emoji.Emoji
+	for i := range buttonMap {
+		listOfButtons = append(listOfButtons, i)
+	}
+	return listOfButtons
 }
