@@ -7,27 +7,12 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-var (
-	Buttons = map[emoji.Emoji]string{
-		emoji.FlagForUkraine:     "UA",
-		emoji.FlagForAfghanistan: "AG",
-		emoji.FlagForJapan:       "JP",
-		emoji.FlagForMalaysia:    "ML",
-	}
-
-	listOfKeys = GetKeyMap(Buttons)
-
-	startMenuMarkup = tgbotapi.NewInlineKeyboardMarkup(
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData(string(listOfKeys[1]), string(listOfKeys[1]))),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData(string(listOfKeys[3]), string(listOfKeys[3]))),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData(string(listOfKeys[2]), string(listOfKeys[2]))),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData(string(listOfKeys[0]), string(listOfKeys[0]))),
-	)
-)
+var Buttons = map[emoji.Emoji]string{
+	emoji.FlagForUkraine:     "UA",
+	emoji.FlagForAfghanistan: "AG",
+	emoji.FlagForJapan:       "JP",
+	emoji.FlagForMalaysia:    "ML",
+}
 
 type TelegramBot struct {
 	bot *tgbotapi.BotAPI
@@ -70,7 +55,7 @@ func (t *TelegramBot) SendMessage(chatId int64, message string) error {
 func (t *TelegramBot) SendMenu(chatId int64, message string) error {
 	msg := tgbotapi.NewMessage(chatId, message)
 	msg.ParseMode = tgbotapi.ModeHTML
-	msg.ReplyMarkup = startMenuMarkup
+	msg.ReplyMarkup = keyboardMarkup(Buttons)
 	_, err := t.bot.Send(msg)
 	return err
 }
@@ -81,18 +66,13 @@ func (t *TelegramBot) SendMessageWithCallback(queryId int64, callback Callback, 
 	callbackCfg := tgbotapi.NewCallback(callback.ChatId, "")
 	t.bot.Send(callbackCfg)
 
-	if err != nil {
-		errorMsg := tgbotapi.NewMessage(queryId, "Please try again in few seconds")
-		_, err = t.bot.Send(errorMsg)
-		if err != nil {
-			log.Error(err)
-		}
-		return
-	}
 	msg := tgbotapi.NewMessage(queryId, messageToSend)
 	_, err = t.bot.Send(msg)
 	if err != nil {
-		return
+		log.WithFields(log.Fields{
+			"chat_id": callback.ChatId,
+			"button":  callback.Button,
+		}).Error("message wasn't sent")
 	}
 }
 
@@ -146,10 +126,13 @@ func (t *TelegramBot) GetUpdates(ctx context.Context) chan TelegramUpdate {
 	return updateChan
 }
 
-func GetKeyMap(buttonMap map[emoji.Emoji]string) []emoji.Emoji {
-	var listOfButtons []emoji.Emoji
+func keyboardMarkup(buttonMap map[emoji.Emoji]string) tgbotapi.InlineKeyboardMarkup {
+	var listOfKeyboardInlines [][]tgbotapi.InlineKeyboardButton
+
 	for i := range buttonMap {
-		listOfButtons = append(listOfButtons, i)
+		listOfKeyboardInlines = append(listOfKeyboardInlines, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(string(i), string(i))))
 	}
-	return listOfButtons
+
+	return tgbotapi.NewInlineKeyboardMarkup(listOfKeyboardInlines...)
 }

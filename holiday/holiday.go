@@ -74,7 +74,7 @@ func (h *HolidayAPI) TransformListOfHolidaysToStr(pressedButton string) (string,
 	}
 
 	for i := 0; i < len(holidayArray); i++ {
-		holidayListInString += (holidayArray)[0]
+		holidayListInString += (holidayArray)[i] + "\n"
 	}
 
 	if len(holidayListInString) > 0 {

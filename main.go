@@ -118,21 +118,16 @@ func handleCallback(callback telegram.Callback) error {
 			"error":          err,
 		}).Error(err)
 		bot.SendMessageWithCallback(callback.Message.Chat.ID, callback, excuse)
+		return err
 	}
 
 	bot.SendMessageWithCallback(callback.Message.Chat.ID, callback, holidayList)
-	if err != nil {
-		logrus.WithFields(logrus.Fields{
-			"chatId":         callback.ChatId,
-			"button_pressed": callback.Button,
-			"error":          err,
-		}).Error("Callback were not handled")
-	} else {
-		logrus.WithFields(logrus.Fields{
-			"chatId": callback.ChatId,
-			"button": callback.Button,
-		}).Info("answer sent")
-	}
+
+	logrus.WithFields(logrus.Fields{
+		"chatId": callback.ChatId,
+		"button": callback.Button,
+	}).Info("answer sent")
+
 	return err
 }
 
@@ -154,12 +149,12 @@ func handleMessage(message telegram.Message) error {
 
 	if err != nil {
 		logrus.Error("Message were not handled")
-	} else {
-		logrus.WithFields(logrus.Fields{
-			"chatId":  message.ChatId,
-			"message": message.Command,
-		}).Info("answer sent")
 	}
+	logrus.WithFields(logrus.Fields{
+		"chatId":  message.ChatId,
+		"message": message.Command,
+	}).Info("answer sent")
+
 	return err
 }
 
