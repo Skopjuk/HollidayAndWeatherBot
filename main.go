@@ -88,6 +88,9 @@ func handleUpdates(update chan telegram.TelegramUpdate) {
 func handleUpdate(update telegram.TelegramUpdate) {
 	if update.Message != nil {
 		err := handleMessage(*update.Message)
+		logrus.WithFields(logrus.Fields{
+			"message": update.Message,
+		}).Info("message handled")
 		if err != nil {
 			logrus.WithFields(logrus.Fields{
 				"chatId": update.Message.ChatId,
@@ -133,6 +136,12 @@ func handleCallback(callback telegram.Callback) error {
 
 func handleMessage(message telegram.Message) error {
 	var err error
+	if message.Location != nil {
+		err := sendHelp(message.ChatId)
+		if err != nil {
+			return err
+		}
+	}
 
 	switch message.Command {
 	case "/help":

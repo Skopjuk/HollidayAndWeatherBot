@@ -7,20 +7,28 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-var Buttons = map[emoji.Emoji]string{
-	emoji.FlagForUkraine:     "UA",
-	emoji.FlagForAfghanistan: "AG",
-	emoji.FlagForJapan:       "JP",
-	emoji.FlagForMalaysia:    "ML",
-}
+var (
+	Buttons = map[emoji.Emoji]string{
+		emoji.FlagForUkraine:     "UA",
+		emoji.FlagForAfghanistan: "AG",
+		emoji.FlagForJapan:       "JP",
+		emoji.FlagForMalaysia:    "ML",
+	}
+)
 
 type TelegramBot struct {
 	bot *tgbotapi.BotAPI
 }
 
+type Location struct {
+	Latitude  float64
+	Longitude float64
+}
+
 type Message struct {
-	Command string
-	ChatId  int64
+	Command  string
+	ChatId   int64
+	Location *Location
 }
 
 type Callback struct {
@@ -55,7 +63,7 @@ func (t *TelegramBot) SendMessage(chatId int64, message string) error {
 func (t *TelegramBot) SendMenu(chatId int64, message string) error {
 	msg := tgbotapi.NewMessage(chatId, message)
 	msg.ParseMode = tgbotapi.ModeHTML
-	msg.ReplyMarkup = keyboardMarkup(Buttons)
+	msg.ReplyMarkup = countriesListKeyboardMarkup(Buttons)
 	_, err := t.bot.Send(msg)
 	return err
 }
@@ -79,17 +87,30 @@ func (t *TelegramBot) SendMessageWithCallback(queryId int64, callback Callback, 
 func newUpdate(t *tgbotapi.Update) TelegramUpdate {
 	update := TelegramUpdate{}
 	var user *tgbotapi.User
-	var text string
 
 	if t.Message != nil {
-		update.Message = &Message{
-			Command: t.Message.Text,
-			ChatId:  t.Message.Chat.ID,
+		if t.Message.Location != nil {
+			location := &Location{
+				Latitude:  t.Message.Location.Latitude,
+				Longitude: t.Message.Location.Longitude,
+			}
+			update.Message = &Message{
+				Command:  t.Message.Text,
+				ChatId:   t.Message.Chat.ID,
+				Location: location,
+			}
+		} else {
+			update.Message = &Message{
+				Command: t.Message.Text,
+				ChatId:  t.Message.Chat.ID,
+			}
 		}
+
 		log.WithFields(log.Fields{
-			"chat_id": t.Message.Chat.ID,
-			"user":    user,
-			"text":    text,
+			"chat_id":  t.Message.Chat.ID,
+			"user":     t.Message.From,
+			"text":     t.Message.Text,
+			"location": t.Message.Location,
 		}).Info("message received")
 	} else if t.CallbackQuery != nil {
 		update.Callback = &Callback{
@@ -126,7 +147,7 @@ func (t *TelegramBot) GetUpdates(ctx context.Context) chan TelegramUpdate {
 	return updateChan
 }
 
-func keyboardMarkup(buttonMap map[emoji.Emoji]string) tgbotapi.InlineKeyboardMarkup {
+func countriesListKeyboardMarkup(buttonMap map[emoji.Emoji]string) tgbotapi.InlineKeyboardMarkup {
 	var listOfKeyboardInlines [][]tgbotapi.InlineKeyboardButton
 
 	for i := range buttonMap {
