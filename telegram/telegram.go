@@ -62,6 +62,7 @@ func (t *TelegramBot) SendMenu(chatId int64, message string) error {
 	msg := tgbotapi.NewMessage(chatId, message)
 	msg.ParseMode = tgbotapi.ModeHTML
 	msg.ReplyMarkup = countriesKeyboard(Buttons)
+
 	_, err := t.bot.Send(msg)
 	if err != nil {
 		log.WithFields(log.Fields{
@@ -70,6 +71,7 @@ func (t *TelegramBot) SendMenu(chatId int64, message string) error {
 		}).Error("menu wasn't sent")
 		return err
 	}
+
 	return err
 }
 
@@ -80,6 +82,7 @@ func (t *TelegramBot) SendMessageWithCallback(queryId int64, callback Callback, 
 	t.bot.Send(callbackCfg)
 
 	msg := tgbotapi.NewMessage(queryId, messageToSend)
+
 	_, err = t.bot.Send(msg)
 	if err != nil {
 		log.WithFields(log.Fields{

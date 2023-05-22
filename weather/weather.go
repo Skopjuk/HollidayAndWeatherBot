@@ -39,8 +39,6 @@ func NewWeatherApi(token string, apiAddress string) *WeatherApi {
 func (w *WeatherApi) MakeRequest(longitude float64, latitude float64) (*WeatherData, error) {
 	weatherData := WeatherData{}
 
-	//	weatherMap := make(map[string]string)
-
 	url := fmt.Sprintf("%s/data/2.5/weather?lat=%f&lon=%f&appid=%s", w.apiAddress, latitude, longitude, w.token)
 
 	resp, err := http.Get(url)
@@ -58,12 +56,6 @@ func (w *WeatherApi) MakeRequest(longitude float64, latitude float64) (*WeatherD
 	if err != nil {
 		return nil, err
 	}
-	//weatherMap["real_temperature"] = fmt.Sprintf("%v", weatherData.MainWeather.Temp)
-	//weatherMap["feels_like"] = fmt.Sprintf("%v", weatherData.MainWeather.FeelLike)
-	//weatherMap["main"] = fmt.Sprintf("%v", weatherData.Weather[0].Main)
-	//weatherMap["temp_min"] = fmt.Sprintf("%v", weatherData.MainWeather.TempMin)
-	//weatherMap["temp_max"] = fmt.Sprintf("%v", weatherData.MainWeather.TempMax)
-	//weatherMap["humidity"] = fmt.Sprintf("%v", weatherData.MainWeather.Humidity)
 
 	return &weatherData, nil
 }

@@ -244,6 +244,7 @@ func handleMessageWithGeo(chatId int64, message telegram.Message) error {
 			"message": message,
 		}).Error("Problems with sending message")
 	}
+
 	return nil
 }
 
