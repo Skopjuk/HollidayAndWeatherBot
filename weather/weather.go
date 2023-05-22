@@ -13,12 +13,15 @@ type WeatherApi struct {
 }
 
 type Weather struct {
-	Description string `json:"description"`
+	Main string `json:"main"`
 }
 
 type MainWeather struct {
 	Temp     float64 `json:"temp"`
 	FeelLike float64 `json:"feels_like"`
+	TempMin  float64 `json:"temp_min"`
+	TempMax  float64 `json:"temp_max"`
+	Humidity float64 `json:"humidity"`
 }
 
 type WeatherData struct {
@@ -33,12 +36,12 @@ func NewWeatherApi(token string, apiAddress string) *WeatherApi {
 	}
 }
 
-func MakeRequest(longitude float32, latitude float32) (map[string]string, error) {
+func (w *WeatherApi) MakeRequest(longitude float64, latitude float64) (map[string]string, error) {
 	weatherData := WeatherData{}
 
 	weatherMap := make(map[string]string)
 
-	url := fmt.Sprintf("https://api.openweathermap.org/data/2.5/weather?lat=%f&lon=%f&appid=b8561745cac51101715b64260d9d06d5")
+	url := fmt.Sprintf("%sdata/2.5/weather?lat=%f&lon=%f&appid=%s", w.apiAddress, latitude, longitude, w.token)
 
 	resp, err := http.Get(url)
 
@@ -58,10 +61,10 @@ func MakeRequest(longitude float32, latitude float32) (map[string]string, error)
 
 	weatherMap["real_temperature"] = fmt.Sprintf("%v", weatherData.MainWeather.Temp)
 	weatherMap["feels_like"] = fmt.Sprintf("%v", weatherData.MainWeather.FeelLike)
-
-	if len(weatherData.Weather) != 0 {
-		weatherMap["description"] = fmt.Sprintf("%v", weatherData.Weather[0].Description)
-	}
+	weatherMap["main"] = fmt.Sprintf("%v", weatherData.Weather[0].Main)
+	weatherMap["temp_min"] = fmt.Sprintf("%v", weatherData.MainWeather.TempMin)
+	weatherMap["temp_max"] = fmt.Sprintf("%v", weatherData.MainWeather.TempMax)
+	weatherMap["humidity"] = fmt.Sprintf("%v", weatherData.MainWeather.Humidity)
 
 	return weatherMap, nil
 }

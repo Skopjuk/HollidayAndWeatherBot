@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"git.foxminded.ua/foxstudent104911/2.1about-me-bot/config"
 	"git.foxminded.ua/foxstudent104911/2.1about-me-bot/holiday"
 	"git.foxminded.ua/foxstudent104911/2.1about-me-bot/telegram"
+	"git.foxminded.ua/foxstudent104911/2.1about-me-bot/weather"
 	"github.com/enescakir/emoji"
 	"github.com/sirupsen/logrus"
 	"os"
@@ -20,6 +22,7 @@ var (
 	done                    = make(chan bool, 1)
 	bot                     *telegram.TelegramBot
 	holidayAPI              *holiday.HolidayAPI
+	weatherApi              *weather.WeatherApi
 	start                   = "Choose country \n"
 )
 
@@ -46,7 +49,9 @@ func main() {
 		logrus.Fatal(err)
 	}
 
-	holidayAPI = holiday.NewHolidayAPI(config.HolidayApiToken, config.ApiUrlAddress)
+	holidayAPI = holiday.NewHolidayAPI(config.HolidayApiToken, config.HolidayApiUrlAddress)
+
+	weatherApi = weather.NewWeatherApi(config.WeatherApiToken, config.WeatherApiUrlAddress)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -136,12 +141,6 @@ func handleCallback(callback telegram.Callback) error {
 
 func handleMessage(message telegram.Message) error {
 	var err error
-	if message.Location != nil {
-		err := sendHelp(message.ChatId)
-		if err != nil {
-			return err
-		}
-	}
 
 	switch message.Command {
 	case "/help":
@@ -153,7 +152,15 @@ func handleMessage(message telegram.Message) error {
 	case "/start":
 		err = sendStart(message.ChatId)
 	default:
-		err = handleUnknownMessage(message.ChatId)
+		if message.Location != nil {
+			err := handleMessageWithGeo(message.ChatId, message)
+			if err != nil {
+				return err
+			}
+		} else {
+			err = handleUnknownMessage(message.ChatId)
+		}
+
 	}
 
 	if err != nil {
@@ -205,6 +212,38 @@ func sendStart(chatId int64) error {
 		}).Error(err)
 	}
 	return err
+}
+
+func handleMessageWithGeo(chatId int64, message telegram.Message) error {
+	var newMessage string
+
+	weatherMessage, err := weatherApi.MakeRequest(message.Location.Longitude, message.Location.Latitude)
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"chatId":  chatId,
+			"message": message,
+		}).Error("Problems with making request")
+		return err
+	}
+
+	newMessage = fmt.Sprintf(
+		"<b>Real Temperature:</b> %s\n<b>Feels Like: </b>%s\n<b>Main: </b>%s\n<b>Minimal Temperature: </b>%s\n<b>Maximum Temperature: </b>%s\n<b>Humidity: </b>%s",
+		weatherMessage["real_temperature"],
+		weatherMessage["feels_like"],
+		weatherMessage["main"],
+		weatherMessage["temp_min"],
+		weatherMessage["temp_max"],
+		weatherMessage["humidity"],
+	)
+
+	err = bot.SendMessage(chatId, newMessage)
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"chatId":  chatId,
+			"message": message,
+		}).Error("Problems with sending message")
+	}
+	return nil
 }
 
 func handleUnknownMessage(chatId int64) error {

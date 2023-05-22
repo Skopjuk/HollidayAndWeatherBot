@@ -7,11 +7,13 @@ import (
 )
 
 type Config struct {
-	Token           string
-	LogLevel        string
-	BotDebug        bool
-	HolidayApiToken string
-	ApiUrlAddress   string
+	Token                string
+	LogLevel             string
+	BotDebug             bool
+	HolidayApiToken      string
+	HolidayApiUrlAddress string
+	WeatherApiToken      string
+	WeatherApiUrlAddress string
 }
 
 func NewConfig() (*Config, error) {
@@ -23,17 +25,22 @@ func NewConfig() (*Config, error) {
 	token := os.Getenv("TOKEN")
 	logLevel := os.Getenv("LOG_LEVEL")
 	botDebug := os.Getenv("BOT_DEBUG")
-	holidayAPI := os.Getenv("HOLIDAY_KEY")
-	apiAddress := os.Getenv("API_ADDRESS")
+	holidayApiToken := os.Getenv("HOLIDAY_KEY")
+	holidayApiUrl := os.Getenv("HOLIDAY_API_ADDRESS")
+	weatherApiToken := os.Getenv("HOLIDAY_API_TOKEN")
+	weatherApiUrl := os.Getenv("WEATHER_API_ADDRESS")
+
 	botDebugBool, err := strconv.ParseBool(botDebug)
 	if err != nil {
 		return nil, err
 	}
 	return &Config{
-		Token:           token,
-		LogLevel:        logLevel,
-		BotDebug:        botDebugBool,
-		HolidayApiToken: holidayAPI,
-		ApiUrlAddress:   apiAddress,
+		Token:                token,
+		LogLevel:             logLevel,
+		BotDebug:             botDebugBool,
+		HolidayApiToken:      holidayApiToken,
+		HolidayApiUrlAddress: holidayApiUrl,
+		WeatherApiToken:      weatherApiToken,
+		WeatherApiUrlAddress: weatherApiUrl,
 	}, nil
 }
