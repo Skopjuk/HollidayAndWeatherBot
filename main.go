@@ -18,7 +18,7 @@ var (
 	infoAboutMe             = "name: Kseniia\nage: 24\ngender: female"
 	socNetworksLinks        = "Instagram: https://instagram.com/some_insta\nFacebook: https://facebook.com/any_facebook\nLinkedIn: https://linkedin.com/some_linkedin"
 	help                    = "<b>List of comands:</b>\n/about -- Info about author\n/links -- links to social networks\n/start -- list of holidays by country"
-	answerForUnknownCommand = "I have no clue what you are talking about"
+	answerForUnknownCommand = "I have no clue what are you talking about"
 	done                    = make(chan bool, 1)
 	bot                     *telegram.TelegramBot
 	holidayAPI              *holiday.HolidayAPI
@@ -227,13 +227,14 @@ func handleMessageWithGeo(chatId int64, message telegram.Message) error {
 	}
 
 	newMessage = fmt.Sprintf(
-		"<b>Real Temperature:</b> %s\n<b>Feels Like: </b>%s\n<b>Main: </b>%s\n<b>Minimal Temperature: </b>%s\n<b>Maximum Temperature: </b>%s\n<b>Humidity: </b>%s",
-		weatherMessage["real_temperature"],
-		weatherMessage["feels_like"],
-		weatherMessage["main"],
-		weatherMessage["temp_min"],
-		weatherMessage["temp_max"],
-		weatherMessage["humidity"],
+		"<b>Real Temperature:</b> %.2f\n<b>Feels Like: </b>%.2f\n<b>Main: </b>%s\n"+
+			"<b>Minimal Temperature: </b>%.2f\n<b>Maximum Temperature: </b>%.2f\n<b>Humidity: </b>%.2f",
+		weatherMessage.MainWeather.Temp-272.15,
+		weatherMessage.MainWeather.FeelLike-272.15,
+		weatherMessage.Weather[0].Main,
+		weatherMessage.MainWeather.TempMin-272.15,
+		weatherMessage.MainWeather.TempMax-272.15,
+		weatherMessage.MainWeather.Humidity,
 	)
 
 	err = bot.SendMessage(chatId, newMessage)
