@@ -18,9 +18,15 @@ type TelegramBot struct {
 	bot *tgbotapi.BotAPI
 }
 
+type Location struct {
+	Latitude  float64
+	Longitude float64
+}
+
 type Message struct {
-	Command string
-	ChatId  int64
+	Command  string
+	ChatId   int64
+	Location *Location
 }
 
 type Callback struct {
@@ -55,8 +61,17 @@ func (t *TelegramBot) SendMessage(chatId int64, message string) error {
 func (t *TelegramBot) SendMenu(chatId int64, message string) error {
 	msg := tgbotapi.NewMessage(chatId, message)
 	msg.ParseMode = tgbotapi.ModeHTML
-	msg.ReplyMarkup = keyboardMarkup(Buttons)
+	msg.ReplyMarkup = countriesKeyboard(Buttons)
+
 	_, err := t.bot.Send(msg)
+	if err != nil {
+		log.WithFields(log.Fields{
+			"chatId":  chatId,
+			"message": message,
+		}).Error("menu wasn't sent")
+		return err
+	}
+
 	return err
 }
 
@@ -67,6 +82,7 @@ func (t *TelegramBot) SendMessageWithCallback(queryId int64, callback Callback, 
 	t.bot.Send(callbackCfg)
 
 	msg := tgbotapi.NewMessage(queryId, messageToSend)
+
 	_, err = t.bot.Send(msg)
 	if err != nil {
 		log.WithFields(log.Fields{
@@ -79,18 +95,9 @@ func (t *TelegramBot) SendMessageWithCallback(queryId int64, callback Callback, 
 func newUpdate(t *tgbotapi.Update) TelegramUpdate {
 	update := TelegramUpdate{}
 	var user *tgbotapi.User
-	var text string
 
 	if t.Message != nil {
-		update.Message = &Message{
-			Command: t.Message.Text,
-			ChatId:  t.Message.Chat.ID,
-		}
-		log.WithFields(log.Fields{
-			"chat_id": t.Message.Chat.ID,
-			"user":    user,
-			"text":    text,
-		}).Info("message received")
+		update = processMessage(t)
 	} else if t.CallbackQuery != nil {
 		update.Callback = &Callback{
 			ChatId:  t.CallbackQuery.ID,
@@ -102,6 +109,36 @@ func newUpdate(t *tgbotapi.Update) TelegramUpdate {
 			"user":    user,
 		}).Info("message received")
 	}
+
+	return update
+}
+
+func processMessage(t *tgbotapi.Update) TelegramUpdate {
+	update := TelegramUpdate{}
+
+	if t.Message.Location != nil {
+		location := &Location{
+			Latitude:  t.Message.Location.Latitude,
+			Longitude: t.Message.Location.Longitude,
+		}
+		update.Message = &Message{
+			Command:  t.Message.Text,
+			ChatId:   t.Message.Chat.ID,
+			Location: location,
+		}
+	} else {
+		update.Message = &Message{
+			Command: t.Message.Text,
+			ChatId:  t.Message.Chat.ID,
+		}
+	}
+
+	log.WithFields(log.Fields{
+		"chat_id":  t.Message.Chat.ID,
+		"user":     t.Message.From,
+		"text":     t.Message.Text,
+		"location": t.Message.Location,
+	}).Info("message received")
 
 	return update
 }
@@ -126,7 +163,7 @@ func (t *TelegramBot) GetUpdates(ctx context.Context) chan TelegramUpdate {
 	return updateChan
 }
 
-func keyboardMarkup(buttonMap map[emoji.Emoji]string) tgbotapi.InlineKeyboardMarkup {
+func countriesKeyboard(buttonMap map[emoji.Emoji]string) tgbotapi.InlineKeyboardMarkup {
 	var listOfKeyboardInlines [][]tgbotapi.InlineKeyboardButton
 
 	for i := range buttonMap {

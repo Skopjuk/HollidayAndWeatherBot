@@ -40,7 +40,7 @@ func (h *HolidayAPI) MakeRequest(country string) ([]string, error) {
 	holidayCatalogue := []HolidayData{}
 	var holidayList []string
 
-	url := fmt.Sprintf("%sv1/?api_key=%s&country=%s&year=%s&month=%s&day=%s", h.apiAddress, h.token, country, currentYear, currentMonth, currentDay)
+	url := fmt.Sprintf("%s/v1/?api_key=%s&country=%s&year=%s&month=%s&day=%s", h.apiAddress, h.token, country, currentYear, currentMonth, currentDay)
 
 	resp, err := http.Get(url)
 	if err != nil {
