@@ -7,11 +7,19 @@ import (
 	"git.foxminded.ua/foxstudent104911/2.1about-me-bot/holiday"
 	"git.foxminded.ua/foxstudent104911/2.1about-me-bot/telegram"
 	"git.foxminded.ua/foxstudent104911/2.1about-me-bot/weather"
+	"git.foxminded.ua/foxstudent104911/2.1about-me-bot/weather_subscription"
 	"github.com/enescakir/emoji"
 	"github.com/sirupsen/logrus"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/mongo/readpref"
 	"os"
 	"os/signal"
+	"regexp"
+	"strconv"
 	"syscall"
+	"time"
 )
 
 var (
@@ -24,6 +32,7 @@ var (
 	holidayAPI              *holiday.HolidayAPI
 	weatherApi              *weather.WeatherApi
 	start                   = "Choose country \n"
+	usersCollection         *mongo.Collection
 )
 
 func main() {
@@ -35,6 +44,17 @@ func main() {
 	if err != nil {
 		logrus.Fatal("unable to load config")
 	}
+
+	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI("mongodb://root:example@localhost:27017"))
+	if err != nil {
+		logrus.Fatal(err)
+	}
+
+	if err := client.Ping(context.TODO(), readpref.Primary()); err != nil {
+		logrus.Fatal(err)
+	}
+
+	usersCollection = client.Database("subscriptions").Collection("subscriptions")
 
 	logLevel, err := logrus.ParseLevel(config.LogLevel)
 	if err != nil {
@@ -93,35 +113,57 @@ func handleUpdates(update chan telegram.TelegramUpdate) {
 func handleUpdate(update telegram.TelegramUpdate) {
 	if update.Message != nil {
 		err := handleMessage(*update.Message)
-		logrus.WithFields(logrus.Fields{
-			"message": update.Message,
-		}).Info("message handled")
 		if err != nil {
 			logrus.WithFields(logrus.Fields{
 				"chatId": update.Message.ChatId,
 			}).Error("message unhandled")
 		}
-	} else if update.Callback != nil {
-		err := handleCallback(*update.Callback)
+
+		logrus.WithFields(logrus.Fields{
+			"message": update.Message,
+		}).Info("message handled")
+	} else if !chooseClickedButton(update) {
+		err := handleFlagButtonCallback(*update.Callback)
 		if err != nil {
 			logrus.WithFields(logrus.Fields{
-				"chatId": update.Callback.ChatId,
+				"chatId": update.Callback.CallbackId,
+			}).Error("callback unhandled")
+		}
+	} else if chooseClickedButton(update) {
+		err := handleHoursButtonCallback(*update.Callback)
+		if err != nil {
+			logrus.WithFields(logrus.Fields{
+				"chatId": update.Callback.CallbackId,
 			}).Error("callback unhandled")
 		}
 	}
 }
 
-func handleCallback(callback telegram.Callback) error {
+func chooseClickedButton(update telegram.TelegramUpdate) bool {
+	match, err := regexp.Match(`\d{1,2}`, []byte(update.Callback.Button))
+
+	if err != nil {
+		logrus.Error(err)
+	}
+
+	if match {
+		return true
+	} else {
+		return false
+	}
+}
+
+func handleFlagButtonCallback(callback telegram.Callback) error {
 	var err error
 	var holidayList string
 	excuse := "Sorry, in reason of internal problem we can't show you list of holidays right now. Please, try to repeat in couple of minutes."
 
-	pressedButton := telegram.Buttons[emoji.Emoji(callback.Button)]
+	pressedButton := telegram.FlagButtons[emoji.Emoji(callback.Button)]
 
 	holidayList, err = holidayAPI.TransformListOfHolidaysToStr(pressedButton)
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
-			"chatId":         callback.ChatId,
+			"chatId":         callback.CallbackId,
 			"button_pressed": callback.Button,
 			"error":          err,
 		}).Error(err)
@@ -132,7 +174,66 @@ func handleCallback(callback telegram.Callback) error {
 	bot.SendMessageWithCallback(callback.Message.Chat.ID, callback, holidayList)
 
 	logrus.WithFields(logrus.Fields{
-		"chatId": callback.ChatId,
+		"chatId": callback.CallbackId,
+		"button": callback.Button,
+	}).Info("answer sent")
+
+	return err
+}
+
+func handleHoursButtonCallback(callback telegram.Callback) error {
+	var err error
+	excuse := "Sorry, in reason of internal problem we can't set up your subscription for weather updates. Please, try to repeat in couple of minutes."
+	usernameInBson := bson.D{{"username", callback.User.UserName}}
+	buttonInInt, _ := strconv.Atoi(callback.Button)
+	pressedButton := telegram.HoursMap()[buttonInInt]
+
+	subscription := bson.D{
+		{"chat_id", callback.CallbackId},
+		{"username", callback.User.UserName},
+		{"send_at", pressedButton},
+		{"created_at", time.Now()},
+		{"updated_at", time.Now()}}
+
+	update := bson.D{
+		{"$set", bson.D{
+			{"chat_id", callback.CallbackId},
+			{"username", callback.User.UserName},
+			{"send_at", pressedButton},
+			{"created_at", time.Now()},
+			{"updated_at", time.Now()}},
+		},
+	}
+
+	var result weather_subscription.Subscription
+
+	err = usersCollection.FindOne(context.TODO(), usernameInBson).Decode(&result)
+
+	if result.Username != "" {
+		_, err = usersCollection.UpdateByID(context.TODO(), result.ID, update)
+		if err != nil {
+			logrus.Error(err)
+		}
+	} else {
+		insertRes, err := usersCollection.InsertOne(context.TODO(), subscription)
+		fmt.Println(insertRes)
+		logrus.Error(err)
+	}
+
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"chatId":         callback.CallbackId,
+			"button_pressed": callback.Button,
+			"error":          err,
+		}).Error(err)
+		bot.SendMessageWithCallback(callback.Message.Chat.ID, callback, excuse)
+		return err
+	}
+
+	bot.SendMessageWithCallback(callback.Message.Chat.ID, callback, "Subscription time set up")
+
+	logrus.WithFields(logrus.Fields{
+		"chatId": callback.CallbackId,
 		"button": callback.Button,
 	}).Info("answer sent")
 
@@ -151,6 +252,8 @@ func handleMessage(message telegram.Message) error {
 		err = sendInfo(message.ChatId)
 	case "/start":
 		err = sendStart(message.ChatId)
+	case "/setup_weather_subscription_time":
+		err = sendHoursMenu(message.ChatId)
 	default:
 		if message.Location != nil {
 			err := handleMessageWithGeo(message.ChatId, message)
@@ -160,7 +263,6 @@ func handleMessage(message telegram.Message) error {
 		} else {
 			err = handleUnknownMessage(message.ChatId)
 		}
-
 	}
 
 	if err != nil {
@@ -204,8 +306,18 @@ func sendHelp(chatId int64) error {
 	return err
 }
 
+func sendHoursMenu(chatId int64) error {
+	err := bot.SendHoursMenu(chatId, "Choose hour")
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"chatId": chatId,
+		}).Error(err)
+	}
+	return err
+}
+
 func sendStart(chatId int64) error {
-	err := bot.SendMenu(chatId, start)
+	err := bot.SendFlagsMenu(chatId, start)
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
 			"chatId": chatId,

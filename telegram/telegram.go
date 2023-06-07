@@ -2,12 +2,13 @@ package telegram
 
 import (
 	"context"
+	"fmt"
 	"github.com/enescakir/emoji"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	log "github.com/sirupsen/logrus"
 )
 
-var Buttons = map[emoji.Emoji]string{
+var FlagButtons = map[emoji.Emoji]string{
 	emoji.FlagForUkraine:     "UA",
 	emoji.FlagForAfghanistan: "AG",
 	emoji.FlagForJapan:       "JP",
@@ -30,9 +31,10 @@ type Message struct {
 }
 
 type Callback struct {
-	ChatId  string
-	Button  string
-	Message *tgbotapi.Message
+	CallbackId string
+	User       *tgbotapi.User
+	Button     string
+	Message    *tgbotapi.Message
 }
 
 type TelegramUpdate struct {
@@ -58,10 +60,10 @@ func (t *TelegramBot) SendMessage(chatId int64, message string) error {
 	return err
 }
 
-func (t *TelegramBot) SendMenu(chatId int64, message string) error {
+func (t *TelegramBot) SendFlagsMenu(chatId int64, message string) error {
 	msg := tgbotapi.NewMessage(chatId, message)
 	msg.ParseMode = tgbotapi.ModeHTML
-	msg.ReplyMarkup = countriesKeyboard(Buttons)
+	msg.ReplyMarkup = countriesKeyboard(FlagButtons)
 
 	_, err := t.bot.Send(msg)
 	if err != nil {
@@ -75,10 +77,28 @@ func (t *TelegramBot) SendMenu(chatId int64, message string) error {
 	return err
 }
 
+func (t *TelegramBot) SendHoursMenu(chatId int64, message string) error {
+	msg := tgbotapi.NewMessage(chatId, message)
+	msg.ParseMode = tgbotapi.ModeHTML
+	b := HoursMap()
+	c := hoursButtons(b)
+	msg.ReplyMarkup = c
+
+	_, err := t.bot.Send(msg)
+	if err != nil {
+		log.WithFields(log.Fields{
+			"chatId":  chatId,
+			"message": message,
+		}).Error("menu wasn't sent")
+		return err
+	}
+
+	return err
+}
 func (t *TelegramBot) SendMessageWithCallback(queryId int64, callback Callback, messageToSend string) {
 	var err error
 
-	callbackCfg := tgbotapi.NewCallback(callback.ChatId, "")
+	callbackCfg := tgbotapi.NewCallback(callback.CallbackId, "")
 	t.bot.Send(callbackCfg)
 
 	msg := tgbotapi.NewMessage(queryId, messageToSend)
@@ -86,7 +106,7 @@ func (t *TelegramBot) SendMessageWithCallback(queryId int64, callback Callback, 
 	_, err = t.bot.Send(msg)
 	if err != nil {
 		log.WithFields(log.Fields{
-			"chat_id": callback.ChatId,
+			"chat_id": callback.CallbackId,
 			"button":  callback.Button,
 		}).Error("message wasn't sent")
 	}
@@ -100,9 +120,10 @@ func newUpdate(t *tgbotapi.Update) TelegramUpdate {
 		update = processMessage(t)
 	} else if t.CallbackQuery != nil {
 		update.Callback = &Callback{
-			ChatId:  t.CallbackQuery.ID,
-			Button:  t.CallbackQuery.Data,
-			Message: t.CallbackQuery.Message,
+			CallbackId: t.CallbackQuery.ID,
+			User:       t.CallbackQuery.From,
+			Button:     t.CallbackQuery.Data,
+			Message:    t.CallbackQuery.Message,
 		}
 		log.WithFields(log.Fields{
 			"chat_id": t.CallbackQuery.ID,
@@ -169,6 +190,28 @@ func countriesKeyboard(buttonMap map[emoji.Emoji]string) tgbotapi.InlineKeyboard
 	for i := range buttonMap {
 		listOfKeyboardInlines = append(listOfKeyboardInlines, tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData(string(i), string(i))))
+	}
+
+	return tgbotapi.NewInlineKeyboardMarkup(listOfKeyboardInlines...)
+}
+
+func HoursMap() []string {
+	hours := []string{}
+
+	for i := 0; i < 24; i++ {
+		button := fmt.Sprintf("%d", i)
+		hours = append(hours, button)
+	}
+
+	return hours
+}
+
+func hoursButtons(hours []string) tgbotapi.InlineKeyboardMarkup {
+	var listOfKeyboardInlines [][]tgbotapi.InlineKeyboardButton
+
+	for _, i := range hours {
+		listOfKeyboardInlines = append(listOfKeyboardInlines, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(i, i)))
 	}
 
 	return tgbotapi.NewInlineKeyboardMarkup(listOfKeyboardInlines...)
