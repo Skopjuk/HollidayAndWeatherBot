@@ -25,6 +25,7 @@ import (
 var (
 	infoAboutMe                            = "name: Kseniia\nage: 24\ngender: female"
 	socNetworksLinks                       = "Instagram: https://instagram.com/some_insta\nFacebook: https://facebook.com/any_facebook\nLinkedIn: https://linkedin.com/some_linkedin"
+	weatherSubscriptionSetupInstruction    = "For setting up weather subscription folow these steps:\n1. Choose hour when you want to get update by pressing on /setup_weather_subscription_time\n2. Press /setup_weather_subscription_location \n3. Send location for which you want to receive updates"
 	help                                   = "<b>List of comands:</b>\n/about -- Info about author\n/links -- links to social networks\n/start -- list of holidays by country"
 	answerForUnknownCommand                = "I have no clue what are you talking about"
 	answerForLocationUpdateInWeatherSubscr = "Please, send geolocation for which you want to receive updates"
@@ -87,6 +88,34 @@ func main() {
 	<-done
 
 	cancel()
+
+}
+
+func sendWeatherSubscription(message telegram.Message) {
+	usernameInBson := bson.D{{"username", message.Username.UserName}}
+	ticker := time.NewTicker(24 * time.Hour)
+	now := time.Now()
+
+	result := weather_subscription.Subscription{}
+	err := usersCollection.FindOne(context.TODO(), usernameInBson).Decode(&result)
+	if err != nil {
+		logrus.Error(err)
+	}
+
+	sendAtInt, _ := strconv.Atoi(result.SendAt)
+
+	for {
+		if now.Hour() == sendAtInt {
+			t := <-ticker.C
+			logrus.WithFields(logrus.Fields{
+				"user": message.Username,
+			}).Info("weather update sent at", t)
+			err = handleMessageWithGeoToWeatherApi(message.ChatId, message)
+			if err != nil {
+				logrus.Fatal(err)
+			}
+		}
+	}
 
 }
 
@@ -183,19 +212,37 @@ func handleFlagButtonCallback(callback telegram.Callback) error {
 	return err
 }
 
+func createUser(callback telegram.Callback) error {
+	subscription := bson.D{
+		{"callback_id", callback.CallbackId},
+		{"username", callback.User.UserName},
+		{"created_at", time.Now()},
+		{"updated_at", time.Now()}}
+
+	insertRes, err := usersCollection.InsertOne(context.TODO(), subscription)
+
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"user": callback.User.UserName,
+		})
+
+		return err
+	}
+
+	logrus.WithFields(logrus.Fields{
+		"user": callback.User.UserName,
+	}).Info("user inserted", insertRes)
+
+	return nil
+}
+
 func handleHoursButtonCallback(callback telegram.Callback) error {
 	var err error
 	excuse := "Sorry, in reason of internal problem we can't set up your subscription for weather updates. Please, try to repeat in couple of minutes."
 	usernameInBson := bson.D{{"username", callback.User.UserName}}
 	buttonInInt, _ := strconv.Atoi(callback.Button)
 	pressedButton := telegram.HoursMap()[buttonInInt]
-
-	subscription := bson.D{
-		{"callback_id", callback.CallbackId},
-		{"username", callback.User.UserName},
-		{"send_at", pressedButton},
-		{"created_at", time.Now()},
-		{"updated_at", time.Now()}}
+	var result weather_subscription.Subscription
 
 	update := bson.D{
 		{"$set", bson.D{
@@ -205,18 +252,17 @@ func handleHoursButtonCallback(callback telegram.Callback) error {
 		},
 	}
 
-	var result weather_subscription.Subscription
-
 	err = usersCollection.FindOne(context.TODO(), usernameInBson).Decode(&result)
 
-	if result.Username != "" {
-		_, err = usersCollection.UpdateByID(context.TODO(), result.ID, update)
+	if result.Username == "" {
+		err = createUser(callback)
 		if err != nil {
-			logrus.Error(err)
+			return err
 		}
-	} else {
-		insertRes, err := usersCollection.InsertOne(context.TODO(), subscription)
-		fmt.Println(insertRes)
+	}
+
+	_, err = usersCollection.UpdateByID(context.TODO(), result.ID, update)
+	if err != nil {
 		logrus.Error(err)
 	}
 
@@ -286,11 +332,12 @@ func handleMessage(message telegram.Message) error {
 		err = sendInfo(message.ChatId)
 	case "/start":
 		err = sendStart(message.ChatId)
+	case "/setup_weather_subscription":
+		err = sendWeatherSubscriptionInstruction(message.ChatId)
 	case "/setup_weather_subscription_time":
 		err = sendHoursMenu(message.ChatId)
 	case "/setup_weather_subscription_location":
 		err = sendWeatherSubscriptionLocation(message.ChatId)
-
 		ifItsLocationForSubscription = true
 	default:
 		if ifItsLocationForSubscription && message.Location != nil {
@@ -298,6 +345,7 @@ func handleMessage(message telegram.Message) error {
 			if err != nil {
 				return err
 			}
+			sendWeatherSubscription(message)
 			ifItsLocationForSubscription = false
 		} else if message.Location != nil {
 			err := handleMessageWithGeoToWeatherApi(message.ChatId, message)
@@ -372,6 +420,16 @@ func sendWeatherSubscriptionLocation(chatId int64) error {
 
 func sendStart(chatId int64) error {
 	err := bot.SendFlagsMenu(chatId, start)
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"chatId": chatId,
+		}).Error(err)
+	}
+	return err
+}
+
+func sendWeatherSubscriptionInstruction(chatId int64) error {
+	err := bot.SendMessage(chatId, weatherSubscriptionSetupInstruction)
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
 			"chatId": chatId,
