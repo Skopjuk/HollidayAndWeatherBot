@@ -6,8 +6,8 @@ import (
 )
 
 type Location struct {
-	Longitude float64
-	Latitude  float64
+	Longitude float64 `bson:"longitude"`
+	Latitude  float64 `bson:"latitude"`
 }
 
 type Subscription struct {
@@ -15,7 +15,7 @@ type Subscription struct {
 	ChatId    string             `bson:"chat_id"`
 	Username  string             `bson:"username"`
 	SendAt    string             `bson:"send_at"`
-	Location  Location
-	CreatedAt time.Time `bson:"created_at"`
-	UpdatedAt time.Time `bson:"updated_at"`
+	Location  Location           `bson:"location"`
+	CreatedAt time.Time          `bson:"created_at"`
+	UpdatedAt time.Time          `bson:"updated_at"`
 }

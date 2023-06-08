@@ -28,6 +28,7 @@ type Message struct {
 	Command  string
 	ChatId   int64
 	Location *Location
+	Username *tgbotapi.User
 }
 
 type Callback struct {
@@ -145,12 +146,14 @@ func processMessage(t *tgbotapi.Update) TelegramUpdate {
 		update.Message = &Message{
 			Command:  t.Message.Text,
 			ChatId:   t.Message.Chat.ID,
+			Username: t.Message.From,
 			Location: location,
 		}
 	} else {
 		update.Message = &Message{
-			Command: t.Message.Text,
-			ChatId:  t.Message.Chat.ID,
+			Command:  t.Message.Text,
+			ChatId:   t.Message.Chat.ID,
+			Username: t.Message.From,
 		}
 	}
 

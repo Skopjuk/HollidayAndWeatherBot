@@ -23,16 +23,18 @@ import (
 )
 
 var (
-	infoAboutMe             = "name: Kseniia\nage: 24\ngender: female"
-	socNetworksLinks        = "Instagram: https://instagram.com/some_insta\nFacebook: https://facebook.com/any_facebook\nLinkedIn: https://linkedin.com/some_linkedin"
-	help                    = "<b>List of comands:</b>\n/about -- Info about author\n/links -- links to social networks\n/start -- list of holidays by country"
-	answerForUnknownCommand = "I have no clue what are you talking about"
-	done                    = make(chan bool, 1)
-	bot                     *telegram.TelegramBot
-	holidayAPI              *holiday.HolidayAPI
-	weatherApi              *weather.WeatherApi
-	start                   = "Choose country \n"
-	usersCollection         *mongo.Collection
+	infoAboutMe                            = "name: Kseniia\nage: 24\ngender: female"
+	socNetworksLinks                       = "Instagram: https://instagram.com/some_insta\nFacebook: https://facebook.com/any_facebook\nLinkedIn: https://linkedin.com/some_linkedin"
+	help                                   = "<b>List of comands:</b>\n/about -- Info about author\n/links -- links to social networks\n/start -- list of holidays by country"
+	answerForUnknownCommand                = "I have no clue what are you talking about"
+	answerForLocationUpdateInWeatherSubscr = "Please, send geolocation for which you want to receive updates"
+	done                                   = make(chan bool, 1)
+	bot                                    *telegram.TelegramBot
+	holidayAPI                             *holiday.HolidayAPI
+	weatherApi                             *weather.WeatherApi
+	start                                  = "Choose country \n"
+	usersCollection                        *mongo.Collection
+	ifItsLocationForSubscription           = false
 )
 
 func main() {
@@ -189,7 +191,7 @@ func handleHoursButtonCallback(callback telegram.Callback) error {
 	pressedButton := telegram.HoursMap()[buttonInInt]
 
 	subscription := bson.D{
-		{"chat_id", callback.CallbackId},
+		{"callback_id", callback.CallbackId},
 		{"username", callback.User.UserName},
 		{"send_at", pressedButton},
 		{"created_at", time.Now()},
@@ -197,10 +199,8 @@ func handleHoursButtonCallback(callback telegram.Callback) error {
 
 	update := bson.D{
 		{"$set", bson.D{
-			{"chat_id", callback.CallbackId},
-			{"username", callback.User.UserName},
+			{"callback_id", callback.CallbackId},
 			{"send_at", pressedButton},
-			{"created_at", time.Now()},
 			{"updated_at", time.Now()}},
 		},
 	}
@@ -222,7 +222,7 @@ func handleHoursButtonCallback(callback telegram.Callback) error {
 
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
-			"chatId":         callback.CallbackId,
+			"callback_id":    callback.CallbackId,
 			"button_pressed": callback.Button,
 			"error":          err,
 		}).Error(err)
@@ -233,11 +233,45 @@ func handleHoursButtonCallback(callback telegram.Callback) error {
 	bot.SendMessageWithCallback(callback.Message.Chat.ID, callback, "Subscription time set up")
 
 	logrus.WithFields(logrus.Fields{
-		"chatId": callback.CallbackId,
-		"button": callback.Button,
+		"callback_id": callback.CallbackId,
+		"button":      callback.Button,
 	}).Info("answer sent")
 
 	return err
+}
+
+func handleMessageWithGeoForWeatherSubscription(message telegram.Message) error {
+	var err error
+	usernameInBson := bson.D{{"username", message.Username.UserName}}
+
+	update := bson.D{
+		{"$set", bson.D{
+			{"username", message.Username.UserName},
+			{"longitude", message.Location.Longitude},
+			{"latitude", message.Location.Latitude},
+			{"updated_at", time.Now()},
+		},
+		},
+	}
+
+	_, err = usersCollection.UpdateOne(context.TODO(), usernameInBson, update)
+	if err != nil {
+		logrus.Error(err)
+	}
+
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"username": message.Username.UserName,
+			"error":    err,
+		}).Error(err)
+		err := bot.SendMessage(message.ChatId, "Location added")
+		if err != nil {
+			return err
+		}
+		return err
+	}
+
+	return nil
 }
 
 func handleMessage(message telegram.Message) error {
@@ -254,9 +288,19 @@ func handleMessage(message telegram.Message) error {
 		err = sendStart(message.ChatId)
 	case "/setup_weather_subscription_time":
 		err = sendHoursMenu(message.ChatId)
+	case "/setup_weather_subscription_location":
+		err = sendWeatherSubscriptionLocation(message.ChatId)
+
+		ifItsLocationForSubscription = true
 	default:
-		if message.Location != nil {
-			err := handleMessageWithGeo(message.ChatId, message)
+		if ifItsLocationForSubscription && message.Location != nil {
+			err = handleMessageWithGeoForWeatherSubscription(message)
+			if err != nil {
+				return err
+			}
+			ifItsLocationForSubscription = false
+		} else if message.Location != nil {
+			err := handleMessageWithGeoToWeatherApi(message.ChatId, message)
 			if err != nil {
 				return err
 			}
@@ -316,6 +360,16 @@ func sendHoursMenu(chatId int64) error {
 	return err
 }
 
+func sendWeatherSubscriptionLocation(chatId int64) error {
+	err := bot.SendMessage(chatId, answerForLocationUpdateInWeatherSubscr)
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"chatId": chatId,
+		}).Error(err)
+	}
+	return err
+}
+
 func sendStart(chatId int64) error {
 	err := bot.SendFlagsMenu(chatId, start)
 	if err != nil {
@@ -326,7 +380,7 @@ func sendStart(chatId int64) error {
 	return err
 }
 
-func handleMessageWithGeo(chatId int64, message telegram.Message) error {
+func handleMessageWithGeoToWeatherApi(chatId int64, message telegram.Message) error {
 	var newMessage string
 
 	weatherMessage, err := weatherApi.MakeRequest(message.Location.Longitude, message.Location.Latitude)
