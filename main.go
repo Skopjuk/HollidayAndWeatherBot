@@ -72,6 +72,8 @@ func main() {
 		logrus.Fatal(err)
 	}
 
+	//при старте нужно вычитывать информацию о пользователях и продолжать выполнять обязательства по сабскрипшенам
+
 	holidayAPI = holiday.NewHolidayAPI(config.HolidayApiToken, config.HolidayApiUrlAddress)
 
 	weatherApi = weather.NewWeatherApi(config.WeatherApiToken, config.WeatherApiUrlAddress)
@@ -80,6 +82,7 @@ func main() {
 
 	updates := bot.GetUpdates(ctx)
 
+	go getSubscriptionDataFromMongoDB()
 	go handleUpdates(updates)
 
 	logrus.Info("Start listening for updates")
@@ -91,32 +94,37 @@ func main() {
 
 }
 
-func sendWeatherSubscription(message telegram.Message) {
-	usernameInBson := bson.D{{"username", message.Username.UserName}}
-	ticker := time.NewTicker(24 * time.Hour)
+func getSubscriptionDataFromMongoDB() {
 	now := time.Now()
-
-	result := weather_subscription.Subscription{}
-	err := usersCollection.FindOne(context.TODO(), usernameInBson).Decode(&result)
-	if err != nil {
-		logrus.Error(err)
-	}
-
-	sendAtInt, _ := strconv.Atoi(result.SendAt)
-
-	for {
-		if now.Hour() == sendAtInt {
-			t := <-ticker.C
-			logrus.WithFields(logrus.Fields{
-				"user": message.Username,
-			}).Info("weather update sent at", t)
-			err = handleMessageWithGeoToWeatherApi(message.ChatId, message)
+	ticker := time.NewTicker(5 * time.Second)
+	go func() {
+		for {
+			<-ticker.C
+			cursor, err := usersCollection.Find(context.TODO(), bson.D{})
 			if err != nil {
-				logrus.Fatal(err)
+				return
+			}
+
+			for cursor.Next(context.TODO()) {
+
+				result := weather_subscription.Subscription{}
+
+				if err := cursor.Decode(&result); err != nil {
+					logrus.Error(err)
+				}
+
+				sendAtInt, _ := strconv.Atoi(result.SendAt)
+
+				if sendAtInt == now.Hour() {
+					err = handleMessageWithGeoToWeatherApi(result.ChatId, result.Location.Longitude, result.Location.Latitude)
+					if err != nil {
+						logrus.Error(err)
+					}
+					fmt.Println(&result)
+				}
 			}
 		}
-	}
-
+	}()
 }
 
 func handleSignals() {
@@ -205,8 +213,8 @@ func handleFlagButtonCallback(callback telegram.Callback) error {
 	bot.SendMessageWithCallback(callback.Message.Chat.ID, callback, holidayList)
 
 	logrus.WithFields(logrus.Fields{
-		"chatId": callback.CallbackId,
-		"button": callback.Button,
+		"callbackId": callback.CallbackId,
+		"button":     callback.Button,
 	}).Info("answer sent")
 
 	return err
@@ -216,6 +224,7 @@ func createUser(callback telegram.Callback) error {
 	subscription := bson.D{
 		{"callback_id", callback.CallbackId},
 		{"username", callback.User.UserName},
+		{"send_at", callback.Button},
 		{"created_at", time.Now()},
 		{"updated_at", time.Now()}}
 
@@ -293,6 +302,7 @@ func handleMessageWithGeoForWeatherSubscription(message telegram.Message) error 
 	update := bson.D{
 		{"$set", bson.D{
 			{"username", message.Username.UserName},
+			{"chat_id", message.ChatId},
 			{"longitude", message.Location.Longitude},
 			{"latitude", message.Location.Latitude},
 			{"updated_at", time.Now()},
@@ -345,13 +355,9 @@ func handleMessage(message telegram.Message) error {
 			if err != nil {
 				return err
 			}
-			sendWeatherSubscription(message)
 			ifItsLocationForSubscription = false
 		} else if message.Location != nil {
-			err := handleMessageWithGeoToWeatherApi(message.ChatId, message)
-			if err != nil {
-				return err
-			}
+			sendStart(message.ChatId)
 		} else {
 			err = handleUnknownMessage(message.ChatId)
 		}
@@ -438,14 +444,13 @@ func sendWeatherSubscriptionInstruction(chatId int64) error {
 	return err
 }
 
-func handleMessageWithGeoToWeatherApi(chatId int64, message telegram.Message) error {
+func handleMessageWithGeoToWeatherApi(chatId int64, longitude float64, latitude float64) error {
 	var newMessage string
 
-	weatherMessage, err := weatherApi.MakeRequest(message.Location.Longitude, message.Location.Latitude)
+	weatherMessage, err := weatherApi.MakeRequest(longitude, latitude)
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
-			"chatId":  chatId,
-			"message": message,
+			"chatId": chatId,
 		}).Error("Problems with making request")
 		return err
 	}
@@ -461,11 +466,10 @@ func handleMessageWithGeoToWeatherApi(chatId int64, message telegram.Message) er
 		weatherMessage.MainWeather.Humidity,
 	)
 
-	err = bot.SendMessage(chatId, newMessage)
+	err = bot.SendMessage(int64(chatId), newMessage)
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
-			"chatId":  chatId,
-			"message": message,
+			"chatId": chatId,
 		}).Error("Problems with sending message")
 	}
 

@@ -12,10 +12,10 @@ type Location struct {
 
 type Subscription struct {
 	ID        primitive.ObjectID `bson:"_id"`
-	ChatId    string             `bson:"chat_id"`
+	ChatId    int64              `bson:"chat_id"`
 	Username  string             `bson:"username"`
 	SendAt    string             `bson:"send_at"`
-	Location  Location           `bson:"location"`
+	Location  Location           `bson:",inline"`
 	CreatedAt time.Time          `bson:"created_at"`
 	UpdatedAt time.Time          `bson:"updated_at"`
 }
