@@ -14,6 +14,7 @@ type Config struct {
 	HolidayApiUrlAddress string
 	WeatherApiToken      string
 	WeatherApiUrlAddress string
+	MongoUrl             string
 }
 
 func NewConfig() (*Config, error) {
@@ -29,6 +30,7 @@ func NewConfig() (*Config, error) {
 	holidayApiUrl := os.Getenv("HOLIDAY_API_ADDRESS")
 	weatherApiToken := os.Getenv("HOLIDAY_API_TOKEN")
 	weatherApiUrl := os.Getenv("WEATHER_API_ADDRESS")
+	mongoUrl := os.Getenv("MONGO_URL")
 
 	botDebugBool, err := strconv.ParseBool(botDebug)
 	if err != nil {
@@ -42,5 +44,6 @@ func NewConfig() (*Config, error) {
 		HolidayApiUrlAddress: holidayApiUrl,
 		WeatherApiToken:      weatherApiToken,
 		WeatherApiUrlAddress: weatherApiUrl,
+		MongoUrl:             mongoUrl,
 	}, nil
 }

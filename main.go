@@ -48,7 +48,7 @@ func main() {
 		logrus.Fatal("unable to load config")
 	}
 
-	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI("mongodb://root:example@localhost:27017"))
+	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI(config.MongoUrl))
 	if err != nil {
 		logrus.Fatal(err)
 	}
@@ -72,8 +72,6 @@ func main() {
 		logrus.Fatal(err)
 	}
 
-	//при старте нужно вычитывать информацию о пользователях и продолжать выполнять обязательства по сабскрипшенам
-
 	holidayAPI = holiday.NewHolidayAPI(config.HolidayApiToken, config.HolidayApiUrlAddress)
 
 	weatherApi = weather.NewWeatherApi(config.WeatherApiToken, config.WeatherApiUrlAddress)
@@ -96,14 +94,16 @@ func main() {
 
 func getSubscriptionDataFromMongoDB() {
 	now := time.Now()
-	ticker := time.NewTicker(5 * time.Second)
+	ticker := time.NewTicker(24 * time.Hour)
 	go func() {
 		for {
 			<-ticker.C
 			cursor, err := usersCollection.Find(context.TODO(), bson.D{})
 			if err != nil {
-				return
+				logrus.Error(err)
 			}
+
+			logrus.Info("Users collection was found")
 
 			for cursor.Next(context.TODO()) {
 
@@ -247,11 +247,17 @@ func createUser(callback telegram.Callback) error {
 
 func handleHoursButtonCallback(callback telegram.Callback) error {
 	var err error
+	var result weather_subscription.Subscription
 	excuse := "Sorry, in reason of internal problem we can't set up your subscription for weather updates. Please, try to repeat in couple of minutes."
 	usernameInBson := bson.D{{"username", callback.User.UserName}}
-	buttonInInt, _ := strconv.Atoi(callback.Button)
+	buttonInInt, err := strconv.Atoi(callback.Button)
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"username": callback.User.UserName,
+		}).Error(err)
+	}
+
 	pressedButton := telegram.HoursMap()[buttonInInt]
-	var result weather_subscription.Subscription
 
 	update := bson.D{
 		{"$set", bson.D{
@@ -266,13 +272,18 @@ func handleHoursButtonCallback(callback telegram.Callback) error {
 	if result.Username == "" {
 		err = createUser(callback)
 		if err != nil {
+			logrus.WithFields(logrus.Fields{
+				"user": result.Username,
+			}).Error(err)
 			return err
 		}
 	}
 
 	_, err = usersCollection.UpdateByID(context.TODO(), result.ID, update)
 	if err != nil {
-		logrus.Error(err)
+		logrus.WithFields(logrus.Fields{
+			"user": result.Username,
+		}).Error(err)
 	}
 
 	if err != nil {
@@ -311,19 +322,17 @@ func handleMessageWithGeoForWeatherSubscription(message telegram.Message) error 
 	}
 
 	_, err = usersCollection.UpdateOne(context.TODO(), usernameInBson, update)
-	if err != nil {
-		logrus.Error(err)
-	}
 
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
 			"username": message.Username.UserName,
 			"error":    err,
 		}).Error(err)
-		err := bot.SendMessage(message.ChatId, "Location added")
-		if err != nil {
-			return err
-		}
+		return err
+	}
+
+	err = bot.SendMessage(message.ChatId, "Location added")
+	if err != nil {
 		return err
 	}
 
@@ -352,12 +361,9 @@ func handleMessage(message telegram.Message) error {
 	default:
 		if ifItsLocationForSubscription && message.Location != nil {
 			err = handleMessageWithGeoForWeatherSubscription(message)
-			if err != nil {
-				return err
-			}
 			ifItsLocationForSubscription = false
 		} else if message.Location != nil {
-			sendStart(message.ChatId)
+			err = sendStart(message.ChatId)
 		} else {
 			err = handleUnknownMessage(message.ChatId)
 		}
