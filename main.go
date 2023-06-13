@@ -77,13 +77,12 @@ func main() {
 	weatherApi = weather.NewWeatherApi(config.WeatherApiToken, config.WeatherApiUrlAddress)
 
 	ctx, cancel := context.WithCancel(context.Background())
-
-	updates := bot.GetUpdates(ctx)
-
-	go getSubscriptionDataFromMongoDB()
-	go handleUpdates(updates)
-
 	logrus.Info("Start listening for updates")
+	fmt.Println("listening")
+	updates := bot.GetUpdates(ctx)
+	fmt.Println(getSubscriptionDataFromMongoDB())
+	go sendSubscriptionsByTicker()
+	go handleUpdates(updates)
 
 	go handleSignals()
 	<-done
@@ -92,39 +91,50 @@ func main() {
 
 }
 
-func getSubscriptionDataFromMongoDB() {
+func getSubscriptionDataFromMongoDB() []weather_subscription.Subscription {
+	var listOfSubscriptions []weather_subscription.Subscription
+
+	cursor, err := usersCollection.Find(context.TODO(), bson.D{})
+	if err != nil {
+		logrus.Error(err)
+	}
+
+	logrus.Info("Users collection was found")
+
+	for cursor.Next(context.TODO()) {
+
+		result := weather_subscription.Subscription{}
+
+		if err := cursor.Decode(&result); err != nil {
+			logrus.Error(err)
+		}
+
+		listOfSubscriptions = append(listOfSubscriptions, result)
+	}
+
+	return listOfSubscriptions
+}
+
+func sendSubscriptionsByTicker() {
 	now := time.Now()
-	ticker := time.NewTicker(24 * time.Hour)
-	go func() {
-		for {
-			<-ticker.C
-			cursor, err := usersCollection.Find(context.TODO(), bson.D{})
-			if err != nil {
-				logrus.Error(err)
-			}
+	ticker := time.NewTicker(4 * time.Second)
+	listOfSubscriptions := getSubscriptionDataFromMongoDB()
 
-			logrus.Info("Users collection was found")
-
-			for cursor.Next(context.TODO()) {
-
-				result := weather_subscription.Subscription{}
-
-				if err := cursor.Decode(&result); err != nil {
-					logrus.Error(err)
-				}
-
-				sendAtInt, _ := strconv.Atoi(result.SendAt)
-
-				if sendAtInt == now.Hour() {
-					err = handleMessageWithGeoToWeatherApi(result.ChatId, result.Location.Longitude, result.Location.Latitude)
+	for _, n := range listOfSubscriptions {
+		sendAtInt, _ := strconv.Atoi(n.SendAt)
+		if sendAtInt == now.Hour() {
+			go func() {
+				for {
+					<-ticker.C
+					err := handleMessageWithGeoToWeatherApi(n.ChatId, n.Location.Longitude, n.Location.Latitude)
 					if err != nil {
 						logrus.Error(err)
 					}
-					fmt.Println(&result)
+					fmt.Println(&n)
 				}
-			}
+			}()
 		}
-	}()
+	}
 }
 
 func handleSignals() {

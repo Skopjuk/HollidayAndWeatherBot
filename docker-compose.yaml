@@ -1,6 +1,16 @@
-version: "1"
+version: "2"
 
 services:
+  web:
+    container_name: dockerdev
+    build: ./
+    ports:
+      - "8000:8000"
+    environment:
+      DD_DB_HOST: db
+      MONGO_URL: mongodb://root:example@mongo:27017
+    depends_on:
+      - db
   mongo:
     image: "mongo:6.0.2"
     restart: always
