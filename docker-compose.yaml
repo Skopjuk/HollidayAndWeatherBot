@@ -7,10 +7,10 @@ services:
     ports:
       - "8000:8000"
     environment:
-      DD_DB_HOST: db
+      DD_DB_HOST: mongo
       MONGO_URL: mongodb://root:example@mongo:27017
     depends_on:
-      - db
+      - mongo
   mongo:
     image: "mongo:6.0.2"
     restart: always
