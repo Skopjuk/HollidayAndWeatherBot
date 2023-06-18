@@ -1,9 +1,6 @@
-FROM golang:1.19
+FROM golang:1.20.5
 
 WORKDIR /app
-
-COPY go.mod go.sum ./
-RUN go mod tidy
 
 COPY ./ ./
 RUN go build -o /about-me-bot

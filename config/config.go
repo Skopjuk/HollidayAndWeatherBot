@@ -2,6 +2,7 @@ package config
 
 import (
 	"github.com/joho/godotenv"
+	"github.com/sirupsen/logrus"
 	"os"
 	"strconv"
 )
@@ -20,7 +21,7 @@ type Config struct {
 func NewConfig() (*Config, error) {
 	err := godotenv.Load()
 	if err != nil {
-		return nil, err
+		logrus.Warning(err)
 	}
 
 	token := os.Getenv("TOKEN")

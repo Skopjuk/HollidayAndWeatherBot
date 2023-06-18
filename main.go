@@ -34,7 +34,7 @@ var (
 	holidayAPI                             *holiday.HolidayAPI
 	weatherApi                             *weather.WeatherApi
 	start                                  = "Choose country \n"
-	usersCollection                        *mongo.Collection
+	database                               *mongo.Database
 	subscriptionDB                         *weather_subscription.MongoSubscriptionConnection
 )
 
@@ -57,7 +57,7 @@ func main() {
 		logrus.Fatal(err)
 	}
 
-	usersCollection = client.Database("subscriptions").Collection("subscriptions")
+	database = client.Database("subscriptions")
 
 	logLevel, err := logrus.ParseLevel(config.LogLevel)
 	if err != nil {
@@ -76,7 +76,7 @@ func main() {
 
 	weatherApi = weather.NewWeatherApi(config.WeatherApiToken, config.WeatherApiUrlAddress)
 
-	subscriptionDB = weather_subscription.NewMongoSubscriptionConnection(*usersCollection)
+	subscriptionDB = weather_subscription.NewMongoSubscriptionConnection(*database.Collection("subscriptions"))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	logrus.Info("Start listening for updates")
@@ -95,25 +95,31 @@ func main() {
 
 func sendSubscriptionsByTicker() {
 	now := time.Now()
-	ticker := time.NewTicker(1 * time.Hour)
+	fmt.Println("time now ", now.Hour())
+
+	ticker := time.NewTicker(5 * time.Second)
+	listOfSubscriptions, err := subscriptionDB.GetSubscriptionDataFromMongoDB()
+	var listOfSendAt []weather_subscription.Subscription
+
+	for _, i := range listOfSubscriptions {
+		fmt.Println(i.SendAt)
+		sendAtInt, _ := strconv.Atoi(i.SendAt)
+		if sendAtInt == now.Hour() {
+			listOfSendAt = append(listOfSendAt, i)
+		}
+	}
 
 	for {
 		<-ticker.C
-
-		listOfSubscriptions, err := subscriptionDB.GetSubscriptionDataFromMongoDB()
 
 		if err != nil {
 			return
 		}
 
 		for _, n := range listOfSubscriptions {
-			sendAtInt, _ := strconv.Atoi(n.SendAt)
-			if sendAtInt == now.Hour() {
-				err := handleMessageWithGeoToWeatherApi(n.ChatId, n.Location.Longitude, n.Location.Latitude)
-				if err != nil {
-					logrus.Error(err)
-				}
-				fmt.Println(&n)
+			err := handleMessageWithGeoToWeatherApi(n.ChatId, n.Location.Longitude, n.Location.Latitude)
+			if err != nil {
+				logrus.Error(err)
 			}
 		}
 	}
@@ -224,8 +230,9 @@ func handleHoursButtonCallback(callback telegram.Callback) error {
 	}
 
 	pressedButton := telegram.HoursMap()[buttonInInt]
+	username := callback.User.UserName
 
-	err = subscriptionDB.UpdateSubscriptionWithTime(callback, pressedButton)
+	err = subscriptionDB.UpdateSubscriptionWithTime(username, pressedButton)
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
 			"callback_id":    callback.CallbackId,
@@ -248,8 +255,14 @@ func handleHoursButtonCallback(callback telegram.Callback) error {
 
 func handleMessageWithGeoForWeatherSubscription(message telegram.Message) error {
 	var err error
+	newMessage := weather_subscription.Message{
+		ChatId:    message.ChatId,
+		Longitude: message.Location.Longitude,
+		Latitude:  message.Location.Latitude,
+		Username:  message.Username.UserName,
+	}
 
-	err = subscriptionDB.UpdateSubscriptionWithLocation(message)
+	err = subscriptionDB.UpdateSubscriptionWithLocation(newMessage)
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
 			"chat_id": message.ChatId,
@@ -268,7 +281,7 @@ func handleMessageWithGeoForWeatherSubscription(message telegram.Message) error 
 func checkIfUserAlreadyExist(message telegram.Message) bool {
 	usernameInBson := bson.D{{"username", message.Username.UserName}}
 
-	cursor, err := usersCollection.Find(context.TODO(), usernameInBson)
+	cursor, err := database.Collection("subscriptions").Find(context.TODO(), usernameInBson)
 	if err != nil {
 		logrus.Error(err)
 	}

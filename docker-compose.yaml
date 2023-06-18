@@ -2,13 +2,17 @@ version: "2"
 
 services:
   web:
-    container_name: dockerdev
     build: ./
-    ports:
-      - "8000:8000"
     environment:
       DD_DB_HOST: mongo
       MONGO_URL: mongodb://root:example@mongo:27017
+      TOKEN: 6126286489:AAFGQz-gm2mB1mB9e-vUeidiABwyL9_KYWQ
+      LOG_LEVEL: debug
+      BOT_DEBUG: "false"
+      HOLIDAY_KEY: 57737f2969694860b9c303aca3c05bee
+      HOLIDAY_API_ADDRESS: https://holidays.abstractapi.com
+      WEATHER_API_ADDRESS: https://api.openweathermap.org
+      HOLIDAY_API_TOKEN: b8561745cac51101715b64260d9d06d5
     depends_on:
       - mongo
   mongo:
