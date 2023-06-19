@@ -2,6 +2,7 @@ package weather_subscription
 
 import (
 	"context"
+	"fmt"
 	"github.com/sirupsen/logrus"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -80,17 +81,16 @@ func (u *MongoSubscriptionConnection) UpdateSubscriptionWithTime(username string
 
 	_, err := u.usersCollection.UpdateOne(context.TODO(), usernameInBson, subscription, opts)
 
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
-func (u *MongoSubscriptionConnection) GetSubscriptionDataFromMongoDB() ([]Subscription, error) {
+func (u *MongoSubscriptionConnection) GetSubscriptionDataFromMongoBySetTime(sendAt string) ([]Subscription, error) {
 	var listOfSubscriptions []Subscription
+	check := bson.D{{"send_at", sendAt}}
+	fmt.Println(sendAt)
 
-	cursor, err := u.usersCollection.Find(context.TODO(), bson.D{})
+	cursor, err := u.usersCollection.Find(context.TODO(), check)
+	fmt.Println(cursor)
 	if err != nil {
 		logrus.Error(err)
 		return []Subscription{}, err
@@ -99,7 +99,6 @@ func (u *MongoSubscriptionConnection) GetSubscriptionDataFromMongoDB() ([]Subscr
 	logrus.Info("Users collection was found")
 
 	for cursor.Next(context.TODO()) {
-
 		result := Subscription{}
 
 		if err := cursor.Decode(&result); err != nil {
@@ -110,5 +109,6 @@ func (u *MongoSubscriptionConnection) GetSubscriptionDataFromMongoDB() ([]Subscr
 		listOfSubscriptions = append(listOfSubscriptions, result)
 	}
 
+	fmt.Println(listOfSubscriptions)
 	return listOfSubscriptions, nil
 }

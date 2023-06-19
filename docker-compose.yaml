@@ -13,6 +13,7 @@ services:
       HOLIDAY_API_ADDRESS: https://holidays.abstractapi.com
       WEATHER_API_ADDRESS: https://api.openweathermap.org
       HOLIDAY_API_TOKEN: b8561745cac51101715b64260d9d06d5
+      TICKER_TIME: 3600
     depends_on:
       - mongo
   mongo:

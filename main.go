@@ -36,6 +36,7 @@ var (
 	start                                  = "Choose country \n"
 	database                               *mongo.Database
 	subscriptionDB                         *weather_subscription.MongoSubscriptionConnection
+	tickerMinutes                          int
 )
 
 func main() {
@@ -64,6 +65,8 @@ func main() {
 		logrus.Error("Wrong log level in config")
 		logLevel = logrus.InfoLevel
 	}
+
+	tickerMinutes = config.TickerMinutes
 
 	logrus.SetLevel(logLevel)
 
@@ -95,25 +98,14 @@ func main() {
 
 func sendSubscriptionsByTicker() {
 	now := time.Now()
-	fmt.Println("time now ", now.Hour())
-
-	ticker := time.NewTicker(5 * time.Second)
-	listOfSubscriptions, err := subscriptionDB.GetSubscriptionDataFromMongoDB()
-	var listOfSendAt []weather_subscription.Subscription
-
-	for _, i := range listOfSubscriptions {
-		fmt.Println(i.SendAt)
-		sendAtInt, _ := strconv.Atoi(i.SendAt)
-		if sendAtInt == now.Hour() {
-			listOfSendAt = append(listOfSendAt, i)
-		}
-	}
+	ticker := time.NewTicker(time.Duration(tickerMinutes) * time.Second)
 
 	for {
 		<-ticker.C
 
-		if err != nil {
-			return
+		listOfSubscriptions, _ := subscriptionDB.GetSubscriptionDataFromMongoBySetTime(strconv.Itoa(now.Hour()))
+		if listOfSubscriptions != nil {
+			logrus.Info("no subscriptions for this hour")
 		}
 
 		for _, n := range listOfSubscriptions {
