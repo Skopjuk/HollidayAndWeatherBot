@@ -2,6 +2,7 @@ package config
 
 import (
 	"github.com/joho/godotenv"
+	"github.com/sirupsen/logrus"
 	"os"
 	"strconv"
 )
@@ -14,12 +15,14 @@ type Config struct {
 	HolidayApiUrlAddress string
 	WeatherApiToken      string
 	WeatherApiUrlAddress string
+	MongoUrl             string
+	TickerMinutes        int
 }
 
 func NewConfig() (*Config, error) {
 	err := godotenv.Load()
 	if err != nil {
-		return nil, err
+		logrus.Warning(err)
 	}
 
 	token := os.Getenv("TOKEN")
@@ -29,6 +32,9 @@ func NewConfig() (*Config, error) {
 	holidayApiUrl := os.Getenv("HOLIDAY_API_ADDRESS")
 	weatherApiToken := os.Getenv("HOLIDAY_API_TOKEN")
 	weatherApiUrl := os.Getenv("WEATHER_API_ADDRESS")
+	mongoUrl := os.Getenv("MONGO_URL")
+	tickerMinutes := os.Getenv("TICKER_TIME")
+	tickerMinutesInInt, err := strconv.Atoi(tickerMinutes)
 
 	botDebugBool, err := strconv.ParseBool(botDebug)
 	if err != nil {
@@ -42,5 +48,7 @@ func NewConfig() (*Config, error) {
 		HolidayApiUrlAddress: holidayApiUrl,
 		WeatherApiToken:      weatherApiToken,
 		WeatherApiUrlAddress: weatherApiUrl,
+		MongoUrl:             mongoUrl,
+		TickerMinutes:        tickerMinutesInInt,
 	}, nil
 }
